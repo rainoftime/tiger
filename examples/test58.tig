@@ -1,0 +1,11 @@
+/* l-values and non-recursive type declarations */
+let
+    var ten:int := 10
+    var hola:string := "hola"
+    type str_array = array of string
+    type str_array_rec = {str_array:str_array}
+    type str_array_rec_array = array of str_array_rec
+    var degeneracy:str_array_rec_array := str_array_rec_array [10] of str_array_rec {str_array=str_array[9] of hola}
+in
+    string_length(degeneracy[0].str_array[0])
+end

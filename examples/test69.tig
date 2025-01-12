@@ -1,0 +1,9 @@
+/* testing for exit_program function */
+let
+  function boom() =
+    (exit_program(-1);)
+in
+  if 1
+  then exit_program(42) /* This should make 42 the return value of the program */
+  else boom()
+end

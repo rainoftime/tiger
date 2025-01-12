@@ -1,0 +1,3 @@
+/* testing for string_substring function */
+string_substring("An unnecessary long string for testing", -213, 215)
+/* This should fail loudly because the source index of the string is out of range */

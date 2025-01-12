@@ -1,0 +1,3 @@
+/* testing for exit_program function */
+exit_program(106)
+/* This should exit with code 106 */

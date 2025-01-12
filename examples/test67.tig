@@ -1,0 +1,2 @@
+/* enforcing syntactic grouping using parentheses */
+(1 - 1) * 5

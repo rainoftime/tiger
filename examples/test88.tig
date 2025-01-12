@@ -1,0 +1,2 @@
+/* testing for string_length function */
+string_length("A string with 27 characters") /* This should return 27 */

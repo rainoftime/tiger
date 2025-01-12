@@ -1,0 +1,2 @@
+/* testing for string_compare function */
+string_compare("string2","string1") /* Expected value: 1*/

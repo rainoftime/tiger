@@ -1,0 +1,2 @@
+/* testing for print_num function  */
+print_num(70) /* This should print the value 70 */

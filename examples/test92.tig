@@ -1,0 +1,3 @@
+/* testing for string_substring function */
+string_substring("An unnecessary long string for testing", 5, 215)
+/* This should fail loudly because the length of the substring is bigger than the source string */

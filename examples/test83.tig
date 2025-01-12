@@ -1,0 +1,2 @@
+/* testing for string_concat function */
+(print_string(string_concat("This string sh","ould be complete"));0) /* This string should be complete */

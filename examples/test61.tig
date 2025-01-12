@@ -1,0 +1,10 @@
+/* function call  */
+let
+    function id(n: int): int = 
+        n
+    
+    function also_id(n: int): int =
+        id(n)
+in
+    id(also_id(id(also_id(id(also_id(id(also_id(0))))))))
+end

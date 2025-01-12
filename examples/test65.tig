@@ -1,0 +1,12 @@
+/* valid for expressions  */
+let
+	var a:= 420
+
+  function boom() =
+      exit_program(-1)
+in
+  for i:=42 to 23 do boom(); /* This should never run */
+  for i:=0 to 0 do a:= 0;
+  for i:=0 to 100 do a:=a+1; /* This should make a:= 101 at the end of the for */
+  a
+end

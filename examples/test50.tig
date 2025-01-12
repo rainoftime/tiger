@@ -1,0 +1,10 @@
+/* function call where argument spill onto the stack.  */
+let 
+	function pepe(a: int, b: int, c: int, d: int, e: int, f: int, g: int): int =
+		g
+	function doot(a: int, b: int, c: int, d: int, e: int, f: int): int =
+		a
+in
+	pepe(1, 2, 3, 4, 5, 22, 23);
+	doot(1, 2, 3, 4, 5, 22)
+end

@@ -1,0 +1,2 @@
+/* testing for print_string function */
+(print_string("Success!");0) /* This should return the string "Success!" */

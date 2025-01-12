@@ -1,0 +1,23 @@
+/* valid use of break expression */
+let
+  var a:int := 0
+
+  function boom() =
+      exit_program(-1)
+in
+  while 1 do
+  (break;boom()); /* This should break and never run boom() */
+
+  while a < 10 do
+    (if a = 5
+    then break
+    else a:=a+1; ()); /* This should break when (a = 5) is true */
+
+  for i:=0 to 0
+  do (break; boom());
+
+  for i:=0 to 69
+  do (a := i;
+      if i=42 then break);        /* This should break when (i = 42) is true */
+  a
+end

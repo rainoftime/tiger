@@ -1,0 +1,8 @@
+/* boolean operator short circuiting  */
+let
+    function boom() =
+        (exit_program(-1);)
+in
+    1 | (boom();0);
+    0 & (boom();0)
+end

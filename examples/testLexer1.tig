@@ -1,0 +1,17 @@
+"String inicial"
+""
+/*comentario que no se va a mostrar */
+
+/*
+comentario
+en varias
+lineas
+*/
+
+"String intermedio"
+
+"string 3/4" /*/*comentario anidado */ comentario fuera del interno */"Any text"
+
+/**/
+
+"String final"

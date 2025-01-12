@@ -1,0 +1,11 @@
+/* comparison expressions  */
+let
+    type arr = array of int
+    type rec = {value:int}
+    var arr1:arr := arr [1] of 0
+    var arr2:arr := arr [1] of 0
+    var rec1:rec := rec {value=0}
+    var rec2:rec := rec {value=0}
+in
+    (1 < 0) | (0 > 1) | (1 <= 0) | (0 >= 1) | (0 = 1) | (1 <> 1) |  (arr1 = arr2) | (arr1 <> arr1) | (rec1 = rec2) | (rec1 <> rec1)
+end

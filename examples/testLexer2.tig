@@ -1,0 +1,15 @@
+"String de prueba genérico."
+
+"Probando \n caracteres \t de \^c escape \420 como \" este \\"
+
+"Este es el string \   	  \ de prueba especial en una linea."
+
+"Otro string\
+\ de		prueba \
+ \ con enters y tabs"
+
+"|1234567890   °!\"#$%&/()=?¡   ¬\\"
+
+"´+{}-.,<>  ;:_[]¨*    ^`~"
+
+""

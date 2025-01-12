@@ -1,0 +1,8 @@
+/* testing for string_substring function */
+let
+  var str1:string := "1234" /* A string of length 4 */
+  var str2:string := "567"  /* A string of length 3 */
+in
+  print_string(string_substring(string_concat(str1, str2), 3, 4));0
+end
+/* This should print "4567" */

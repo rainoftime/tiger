@@ -1,0 +1,2 @@
+/* testing for string_length function */
+string_length("") /* This should return 0 */

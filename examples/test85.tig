@@ -1,0 +1,2 @@
+/* testing for string_concat function */
+(print_string(string_concat("","Right string"));0) /* Right string */

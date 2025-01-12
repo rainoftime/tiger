@@ -1,0 +1,8 @@
+/* testing for string_length function */
+let
+  var str1:string := "1234" /* A string of length 4 */
+  var str2:string := "567"  /* A string of length 3 */
+in
+  string_length(str1) + string_length(str2) = string_length(string_concat(str1, str2))
+  /* This should return 1 */
+end

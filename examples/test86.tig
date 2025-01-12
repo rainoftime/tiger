@@ -1,0 +1,2 @@
+/* testing for string_equal function */
+string_equal("string1","string1") /* This should return 1 */

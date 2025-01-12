@@ -1,0 +1,2 @@
+/* testing for char_to_num function */
+char_to_num("Expecting a 69 as the return value")

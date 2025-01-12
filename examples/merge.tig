@@ -1,0 +1,56 @@
+let
+
+ type any = {any : int}
+ var buffer := read_char()
+
+function readint(any: any) : int =
+ let var i := 0
+     function isdigit(s : string) : int =
+		  char_to_num(buffer)>=char_to_num("0") & char_to_num(buffer)<=char_to_num("9")
+     function skipto() =
+       while buffer=" " | buffer="\n"
+         do buffer := read_char()
+  in skipto();
+     any.any := isdigit(buffer);
+     while isdigit(buffer)
+       do (i := i*10+char_to_num(buffer)-char_to_num("0"); buffer := read_char());
+     i
+ end
+
+ type list = {first: int, rest: list}
+
+ function readlist() : list =
+    let var any := any{any=0}
+        var i := readint(any)
+     in if any.any
+         then list{first=i,rest=readlist()}
+         else nil
+    end
+
+ function merge(a: list, b: list) : list =
+   if a=nil then b
+   else if b=nil then a
+   else if a.first < b.first
+      then list{first=a.first,rest=merge(a.rest,b)}
+      else list{first=b.first,rest=merge(a,b.rest)}
+
+ function printint(i: int) =
+  let function f(i:int) = if i>0
+	     then (f(i/10); print_string(num_to_char(i-i/10*10+char_to_num("0"))))
+   in if i<0 then (print_string("-"); f(-i))
+      else if i>0 then f(i)
+      else print_string("0")
+  end
+
+ function printlist(l: list) =
+   if l=nil then print_string("\n")
+   else (printint(l.first); print_string(" "); printlist(l.rest))
+
+   var list1 := readlist()
+   var list2 := (buffer:=read_char(); readlist())
+
+
+  /* BODY OF MAIN PROGRAM */
+ in printlist(merge(list1,list2)); 0
+end
+

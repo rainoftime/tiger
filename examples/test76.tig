@@ -1,0 +1,2 @@
+/* testing for num_to_char function */
+(print_string(num_to_char(70));0) /* This should print the character F */

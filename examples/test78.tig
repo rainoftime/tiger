@@ -1,0 +1,2 @@
+/* testing for read_char function */
+(print_string(read_char());0) /* given any string, it should print the first character */

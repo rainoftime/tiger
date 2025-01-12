@@ -1,0 +1,2 @@
+/* testing for not function */
+  not(5 < 3)   /* The statement (5 < 3) is false (equal to the value 0), so the program should return 1 */

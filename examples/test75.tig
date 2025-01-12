@@ -1,0 +1,2 @@
+/* testing for num_to_char function */
+num_to_char(3000) /* This should fail loudly */

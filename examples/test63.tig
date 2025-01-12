@@ -1,0 +1,24 @@
+/* if-then-else and if-then expression */
+let
+    function boom() =
+        exit_program(-1)
+in
+    if
+        0
+    then
+        boom()
+    else
+        if
+            1
+        then
+            (if
+                1
+            then
+                if
+                    0
+                then
+                    boom()
+            )
+        else
+            boom()
+end

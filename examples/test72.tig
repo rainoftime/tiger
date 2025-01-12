@@ -1,0 +1,6 @@
+/* testing for not function */
+let
+  var a:int := 0
+in
+  not(not(a)) /* not(a) is true (a non 0 value), so the return value of this program should be 0 */
+end

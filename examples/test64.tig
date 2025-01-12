@@ -1,0 +1,13 @@
+/* valid while expression */
+let
+  var a:int := 0
+
+  function boom() =
+      exit_program(-1)
+in
+  while 0 do /* This should never run */
+    boom();
+  while a < 10 do
+    a:=a+1; /* This should make a:= 10 at the end of the while */
+  a
+end
