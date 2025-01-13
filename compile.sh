@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# Adjunct the commands based on the current environment?
+# (e.g., Arch, OS, C compiler, etc.)
 
 python3 main.py "$1"
 if [ $? -eq 0 ]; then

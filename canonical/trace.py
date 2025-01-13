@@ -1,3 +1,4 @@
+""" """
 from typing import List
 
 from activation_records.temp import TempLabel, TempManager
@@ -24,29 +25,37 @@ def add_new_false_label(statements: List[Statement]):
 
 
 def reorder_blocks(statement_lists: List[List[Statement]]) -> List[List[Statement]]:
+    """Reorder the blocks 
+    接收一个包含多个语句列表的列表，并返回一个重新排序后的语句列表的列表
+    """
+    # 创建一个字典，键是代码块的标签，值是对应的语句列表
     unmarked_blocks = {
         block_label(statements): statements for statements in statement_lists
     }
-    result = []
+    result = [] 
     for block in statement_lists:
         current_block = block
         while block_label(current_block) in unmarked_blocks:
             unmarked_blocks.pop(block_label(current_block))
             result.append(current_block)
             last_statement = current_block[-1]
+
             if isinstance(last_statement, Jump):
                 target_label = last_statement.labels[0]
                 if target_label in unmarked_blocks:
                     current_block = unmarked_blocks[target_label]
+
             elif isinstance(last_statement, ConditionalJump):
                 if last_statement.false in unmarked_blocks:
                     current_block = unmarked_blocks[last_statement.false]
                 elif last_statement.true in unmarked_blocks:
                     current_block = unmarked_blocks[last_statement.true]
+
     return result
 
 
 def fix_jumps(statement_lists: List[List[Statement]]):
+    """"""
     for index, statements in enumerate(statement_lists[:-1]):
         last_statement = statements[-1]
         if isinstance(last_statement, Jump):
@@ -76,6 +85,7 @@ def fix_jumps(statement_lists: List[List[Statement]]):
 
 
 def trace_schedule(block: BasicBlock) -> List[Statement]:
+    """ """
     reordered_blocks = reorder_blocks(block.statement_lists)
     reordered_blocks.append([Label(block.label)])
     fix_jumps(reordered_blocks)

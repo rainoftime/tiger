@@ -1,9 +1,7 @@
-# Pythiger
+# Compiler for Tiger
 
-Compiler for the Tiger programming language implemented in Python. Based on the books
-by [Andrew Appel](https://www.cs.princeton.edu/~appel/modern/c/).
+Compiler for the Tiger programming language implemented in Python. 
 
-All source code can be found in `src`:
 
 * `lexer`: Chapter 2, Lexical Analysis.
 * `parser`: Chapter 3, Parsing and Chapter 4, Abstract Syntax.
@@ -15,16 +13,15 @@ All source code can be found in `src`:
 * `liveness_analysis`: Chapter 10, Liveness Analysis.
 * `register_allocation`: Chapter 11, Register Allocation.
 * `putting_it_all_together`: Chapter 12, Putting it All Together.
-* `examples`: A list of Tiger programs provided by [Appel](https://www.cs.princeton.edu/~appel/modern/testcases/).
+* `examples`: A list of Tiger programs provided by Appel.
 * `tests`: Integration tests for specific parts of the compilation process.
 * `ply`: [Python Lex-Yacc](https://www.dabeaz.com/ply/). Used in chapters 2-4.
 
 ## Setup
 
-This project uses Python version `3.6`.
+This project has been tested on Python version `3.9` (TBD).
 
-From the project root directory, on
-a [virtual Python environment](https://virtualenvwrapper.readthedocs.io/en/latest/) (or not, if you're feeling brave),
+From the project root directory, on a virtual Python environment,
 run:
 
 ```bash
@@ -33,20 +30,33 @@ pip3 install -r requirements.txt
 
 ## Usage
 
-Make sure `src/compile.sh` has execution permissions and that the `src` directory is added to your `$PYTHONPATH`
+### Compile a Tiger Program
+
+Make sure `src/compile.sh` has execution permissions and that the current directory is added to your `$PYTHONPATH`
 environment variable.
 
-From the `src` directory, run:
+Run:
 
 ```bash
 ./compile.sh source_file
 ```
 
-This will generate an executable in the `src` directory with the name `a.out`.
+This will generate an executable with the name `a.out`.
+
+### Dump and View (TBD)
+
+- AST (after parsing)
+- Typed AST (after semantic analysis)
+- IR Tree
+- Canonicalied IR Tree
+- Instructions before register allocation
+- Instructions after register allocation
+- Stack frame?
+- ...
 
 ## Tests
 
-From the `src` directory, run:
+Run:
 
 ```bash
 python3 -m unittest
@@ -59,3 +69,8 @@ To run tests for a specific file or directory, use:
 ```bash
 python3 -m unittest <PATH>
 ```
+
+## Readings
+
+- The Tiger Book
+- Lecture Notes on Principles of Compilers, rainoftime
