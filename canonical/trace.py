@@ -25,8 +25,7 @@ def add_new_false_label(statements: List[Statement]):
 
 
 def reorder_blocks(statement_lists: List[List[Statement]]) -> List[List[Statement]]:
-    """Reorder the blocks 
-    接收一个包含多个语句列表的列表，并返回一个重新排序后的语句列表的列表
+    """Reorder the blocks
     """
     # 创建一个字典，键是代码块的标签，值是对应的语句列表
     unmarked_blocks = {

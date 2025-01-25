@@ -19,6 +19,13 @@ class BasicBlock:
 
 
 def basic_block(statements: List[Statement]) -> BasicBlock:
+    """
+    创建一个新的结束标签 done_label。
+    初始化 statement_lists 和 block_start_index。
+    遍历输入的语句列表，根据 Label、Jump 和 ConditionalJump 将语句划分为多个基本块。
+    为每个基本块添加必要的标签和跳转语句。
+    返回一个包含所有基本块的 BasicBlock 对象？
+    """
     done_label = TempManager.new_label()
     statement_lists = []
 

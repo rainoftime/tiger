@@ -37,7 +37,7 @@ def convert_relational_operator(operator: IRT.RelationalOperator) -> str:
 
 # There are two operators for multiplication and division, one for
 # signed values and another for unsigned ones.
-# Currently using signed version of mul and div.
+# Currently, using signed version of mul and div.
 def convert_binary_operator(operator: IRT.BinaryOperator) -> str:
     conversion_dictionary = {
         IRT.BinaryOperator.plus: "addq",

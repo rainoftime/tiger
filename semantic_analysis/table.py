@@ -17,6 +17,7 @@ class SymbolTable(Generic[T]):
     def add(self, identifier: str, value: T):
         """Add a new binding to the current scope."""
         self.stack.append(identifier)
+        #  self.bindings[identifier]是一个列表，由旧到新
         self.bindings[identifier] = self.bindings.get(identifier, []) + [value]
 
     def find(self, identifier: str) -> Optional[T]:
@@ -30,14 +31,15 @@ class SymbolTable(Generic[T]):
         self.stack.append(ScopeStart(is_loop_scope))
 
     def end_scope(self):
-        """End the current scope.Remove all bindings in the current scope."""
+        """End the current scope. Remove all bindings in the current scope."""
         while len(self.stack) > 0 and not isinstance(self.stack[-1], ScopeStart):
             identifier = self.stack.pop(-1)
-            self.bindings[identifier].pop(-1)
+            self.bindings[identifier].pop(-1)   # 去掉list最后一个元素?
+
             if not len(self.bindings[identifier]):
-                self.bindings.pop(identifier)
+                self.bindings.pop(identifier)   # 去掉identifier这个keY?
         if len(self.stack):
-            self.stack.pop(-1)
+            self.stack.pop(-1)  # 最后pop掉ScopeStart?
 
     def is_closest_scope_a_loop(self) -> bool:
         index = len(self.stack) - 1
@@ -47,9 +49,7 @@ class SymbolTable(Generic[T]):
     
     def display(self) -> str:
         """Return a string representation of the symbol table's current state."""
-        result = []
-        result.append("Symbol Table Contents:")
-        result.append("Bindings:")
+        result = ["Symbol Table Contents:", "Bindings:"]
         for id, values in self.bindings.items():
             result.append(f"  {id}: {values}")
         result.append("Stack:")
@@ -65,16 +65,25 @@ class SymbolTable(Generic[T]):
 
 
 if __name__ == "__main__":
+    print("test table")
     table = SymbolTable[int]()
     # Test nested scopes
     table.begin_scope()
     table.add("x", 10)
+    # table.add("x", 15)
+    table.add("y", 8)
     table.begin_scope()
     table.add("x", 20)
     print(table.find("x"))  # Should print 20
+    print("stack: ", table.stack)
+    print("bindings: ", table.bindings)
     table.end_scope()
     print(table.find("x"))  # Should print 10
+    print("stack: ", table.stack)
+    print("bindings: ", table.bindings)
     table.end_scope()
+
+    exit(0)
 
     # Test loop scopes
     table.begin_scope(is_loop_scope=True)

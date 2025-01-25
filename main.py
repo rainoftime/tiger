@@ -59,6 +59,7 @@ def main():
             string_fragments.append(fragment)
 
     canonized_bodies = [canonize(fragment.body) for fragment in process_fragments]
+
     # Instruction Selection
     assembly_bodies = [
         Codegen.codegen(process_body) for process_body in canonized_bodies

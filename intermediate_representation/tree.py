@@ -1,3 +1,7 @@
+"""
+Tree Intermediate Representation
+"""
+
 from abc import ABC
 from enum import Enum, auto
 from typing import Optional, List
@@ -96,6 +100,7 @@ class Temporary(Expression):
 
 @dataclass
 class EvaluateSequence(Expression):
+    # ESEQ?
     statement: Statement
     expression: Expression
 

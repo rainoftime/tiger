@@ -75,3 +75,8 @@ class BaseEnvironmentManager:
             outermost_level, function_label, [False for _ in formal_types]
         )
         return FunctionEntry(function_level, function_label, formal_types, return_type)
+
+
+if __name__ == "__main__":
+    # add an example?
+    print("env")

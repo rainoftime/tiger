@@ -6,6 +6,13 @@ from ply import lex
 
 import parser.ast_nodes as ast
 from semantic_analysis.analyzers import TypedExpression, translate_program
+from typing import List
+
+import intermediate_representation.tree as irt
+from canonical.basic_block import basic_block, BasicBlock
+
+from canonical.linearize import linearize
+from intermediate_representation.fragment import FragmentManager, ProcessFragment
 
 
 def parse_program(file_name: str) -> ast.Expression:

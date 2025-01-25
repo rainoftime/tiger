@@ -23,3 +23,6 @@ class FileHandler:
 
     def print_assembly_procedure(self, assembly_procedure: Procedure):
         self.file.write(assembly_procedure.format(temp_to_str))
+
+    def get_file_content(self):
+        return self.file

@@ -20,12 +20,14 @@ from intermediate_representation.tree import (
 
 
 def is_noop(statement: Statement) -> bool:
-    return isinstance(statement, StatementExpression) and isinstance(
-        statement.expression, Constant
-    )
+    return isinstance(statement, StatementExpression) and \
+        isinstance(statement.expression, Constant)
 
 
 def commute(statement: Statement, expression: Expression) -> bool:
+    """A conversitive strategy for deciding whether
+     statement and expression are commutative
+    """
     return (
             is_noop(statement)
             or isinstance(expression, Name)

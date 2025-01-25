@@ -1,3 +1,12 @@
+"""
+translate_program
+
+translate_variable
+translate_expression
+translate_declaration
+translate_type
+"""
+
 from typing import Set, Optional, Union, List
 
 from dataclasses import dataclass
@@ -55,7 +64,7 @@ def simplify_type_aliases(
     This function recursively moves through the chain, keeping track of already seen type aliases.
     If at some point it sees one that has already been visited, it detects a loop and returns None.
     If not, it eventually finds a record or array definition, and goes back the chain updating all
-    visited type aliases so they point to the corresponding type."""
+    visited type aliases, so they point to the corresponding type."""
 
     if type_name in already_seen:
         return None
