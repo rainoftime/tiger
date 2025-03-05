@@ -74,5 +74,3 @@ def translate_while(self, test, body):
     ])
 ```
 
-
----

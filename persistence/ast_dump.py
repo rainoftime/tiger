@@ -6,18 +6,73 @@ from graphviz import Digraph
 from parser.ast_nodes import *
 
 
+def get_children(node):
+    """Get children of an AST node based on its type."""
+    if isinstance(node, LetExp):
+        return node.decs + [node.body]
+    elif isinstance(node, CallExp):
+        return [node.function] + node.args  # Changed from arguments to args
+    elif isinstance(node, OpExp):
+        return [node.left, node.right]
+    elif isinstance(node, RecordExp):
+        return [field.exp for field in node.fields]
+    elif isinstance(node, SeqExp):
+        return node.exps
+    elif isinstance(node, AssignExp):
+        return [node.var, node.exp]
+    elif isinstance(node, IfExp):
+        children = [node.test, node.then]
+        if node.else_exp:
+            children.append(node.else_exp)
+        return children
+    elif isinstance(node, WhileExp):
+        return [node.test, node.body]
+    elif isinstance(node, ForExp):
+        return [node.var_exp, node.low, node.high, node.body]
+    elif isinstance(node, ArrayExp):
+        return [node.size, node.init]
+    elif isinstance(node, VarDec):
+        return [node.init] if node.init else []  # Handle case where init is None
+    elif isinstance(node, FunctionDec):
+        return [func.body for func in node.functions if func.body]  # Only include non-None bodies
+    elif isinstance(node, SimpleVar):
+        return []
+    elif isinstance(node, FieldVar):
+        return [node.var]
+    elif isinstance(node, SubscriptVar):
+        return [node.var, node.exp]
+    elif isinstance(node, NilExp):
+        return []
+    elif isinstance(node, IntExp):
+        return []
+    elif isinstance(node, StringExp):
+        return []
+    elif isinstance(node, BreakExp):
+        return []
+    else:
+        return []
+
+
 def pretty_print_ast_after_parsing(ast, filename: str):
     dot = Digraph()
 
     def add_node(node, parent=None):
         node_id = str(id(node))
-        label = type(node).__name__
+        label = f"{type(node).__name__}"
+        if isinstance(node, IntExp):
+            label += f"\n{node.value}"
+        elif isinstance(node, StringExp):
+            label += f"\n{node.value}"
+        elif isinstance(node, SimpleVar):
+            label += f"\n{node.name}"
         dot.node(node_id, label)
+        
         if parent:
             dot.edge(str(id(parent)), node_id)
 
-        for child in node.children:
-            add_node(child, node)
+        for child in get_children(node):
+            if child:  # Skip None children
+                add_node(child, node)
 
     add_node(ast)
     dot.render(filename, format='dot', cleanup=True)
@@ -28,13 +83,17 @@ def pretty_print_ast_after_semantic_analysis(ast, filename: str):
 
     def add_node(node, parent=None):
         node_id = str(id(node))
-        label = f"{type(node).__name__} ({node.semantic_info})"
+        label = f"{type(node).__name__}"
+        if hasattr(node, 'semantic_info'):
+            label += f"\n{node.semantic_info}"
         dot.node(node_id, label)
+        
         if parent:
             dot.edge(str(id(parent)), node_id)
 
-        for child in node.children:
-            add_node(child, node)
+        for child in get_children(node):
+            if child:  # Skip None children
+                add_node(child, node)
 
     add_node(ast)
     dot.render(filename, format='dot', cleanup=True)

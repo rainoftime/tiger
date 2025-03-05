@@ -1,5 +1,5 @@
 """
-
+Tiger Compiler with Options for Dumping the Ouput of Each Step.
 """
 from activation_records.frame import TempMap, sink, assembly_procedure
 from activation_records.instruction_removal import is_redundant_move
@@ -34,6 +34,8 @@ def setup_arguments():
     parser.add_argument('-dump-canon-ir', action='store_true', help='Dump canonized IR')
     parser.add_argument('-dump-assembly', action='store_true', help='Dump output of instruction selection')
     parser.add_argument('-dump-regalloc', action='store_true', help='Dump output of register allocation')
+
+    parser.add_argument('-dump-all', action='store_true', help='Dump output of each phase')
     return parser.parse_args()
 
 
@@ -42,6 +44,16 @@ def main():
     setup_logger()
 
     logging.info("Starting compilation")
+
+    # Update dump flags if dump-all is set
+    if args.dump_all:
+        args.dump_lex = True
+        args.dump_parse = True
+        args.dump_sem = True
+        args.dump_ir = True
+        args.dump_canon_ir = True
+        args.dump_assembly = True
+        args.dump_regalloc = True
 
     try:
         with open(args.input_file, "r") as f:
@@ -55,12 +67,16 @@ def main():
     lex.input(data)
 
     if args.dump_lex:
-        # will the following code affect other subsequent phases?
+        # TODO: will the following code affect other subsequent phases?
+        print("\n" + "="*50)
+        print("Lexical Analysis Output")
+        print("="*50)
         while True:
             tok = lex.token()
             if not tok:
                 break  # No more input
             print(tok)
+        print("="*50 + "\n")
 
     # Parsing
     try:
@@ -70,7 +86,11 @@ def main():
         sys.exit(1)
 
     if args.dump_parse:
+        print("\n" + "="*50)
+        print("Parser Output")
+        print("="*50)
         print(parsed_program)
+        print("="*50 + "\n")
 
     # Semantic Analysis and IR Translation
     logging.info("Starting semantic analysis")
@@ -83,7 +103,11 @@ def main():
         sys.exit(1)
 
     if args.dump_sem:
+        print("\n" + "="*50)
+        print("Semantic Analysis Output")
+        print("="*50)
         print(typed_exp)
+        print("="*50 + "\n")
 
     # IR Processing
     process_fragments = []
@@ -98,8 +122,14 @@ def main():
     if args.dump_ir:
         # TODO: pretty print (and dump as a dot file?)
         #  Make the basic block more ``explicit'' in the dumped IR?
+        print("\n" + "="*50)
+        print("Tree IR")
+        print("="*50)
+        from persistence.ir_dump import print_ir_list
+        # print_ir_list([fragment.body for fragment in process_fragments])
         for fragment in process_fragments:
             print(fragment.body)
+        print("="*50 + "\n")
 
     # Canonization
     logging.info("Starting IR canonization")
@@ -107,21 +137,31 @@ def main():
 
     if args.dump_canon_ir:
         # Dump the canonized IR
-        print(canonized_bodies)
+        from persistence.ir_dump import print_canonized_ir
+        print("\n" + "="*50)
+        print("Canonized Tree IR")
+        print("="*50)
+        print_canonized_ir(canonized_bodies)
+        # print(canonized_bodies)
+        print("="*50 + "\n")
 
     # Instruction Selection
     logging.info("Starting instruction selection")
     assembly_bodies = [Codegen.codegen(process_body) for process_body in canonized_bodies]
 
     if args.dump_assembly:
+        print("\n" + "="*50)
+        print("Instruction Selection Output")
         print(assembly_bodies)
+        print("="*50 + "\n")
+
 
     file_handler = FileHandler("output.s")
     file_handler.print_data_header()
     for string_fragment in string_fragments:
         file_handler.print_string_fragment(string_fragment)
 
-    file_handler.print_code_header()
+    file_handler.print_code_header() # shoud we?
 
     # Register Allocation
     logging.info("Starting register allocation")
@@ -138,7 +178,11 @@ def main():
         file_handler.print_assembly_procedure(procedure)
 
     if args.dump_regalloc:
+        print("\n" + "="*50)
+        print("Register Allocation Output")
+        print("="*50)
         print(file_handler)
+        print("="*50 + "\n")
 
     logging.info("Compilation completed successfully")
 
