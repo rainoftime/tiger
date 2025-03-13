@@ -126,7 +126,8 @@ def main():
         print("Tree IR")
         print("="*50)
         from persistence.ir_dump import print_ir_list
-        # print_ir_list([fragment.body for fragment in process_fragments])
+        print_ir_list([fragment.body for fragment in process_fragments])
+        print("="*50)
         for fragment in process_fragments:
             print(fragment.body)
         print("="*50 + "\n")
@@ -142,7 +143,8 @@ def main():
         print("Canonized Tree IR")
         print("="*50)
         print_canonized_ir(canonized_bodies)
-        # print(canonized_bodies)
+        print("="*50)
+        print(canonized_bodies)
         print("="*50 + "\n")
 
     # Instruction Selection

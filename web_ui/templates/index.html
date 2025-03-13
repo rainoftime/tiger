@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tiger Compiler Web UI</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/dracula.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <!-- D3.js for AST visualization -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">Tiger Compiler Web UI</a>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">Tiger Source Code</h5>
+                        <div>
+                            <button class="btn btn-sm btn-primary" id="compile-btn">Compile</button>
+                            <button class="btn btn-sm btn-secondary" id="upload-btn">Upload</button>
+                            <input type="file" id="file-upload" style="display: none;" accept=".tig">
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="example-select" class="form-label">Example Programs:</label>
+                            <select class="form-select" id="example-select">
+                                <option value="">Select an example...</option>
+                                {% for example in examples %}
+                                <option value="{{ example }}">{{ example }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <textarea id="code-editor"></textarea>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <ul class="nav nav-tabs card-header-tabs" id="result-tabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="lexer-tab" data-bs-toggle="tab" data-bs-target="#lexer" type="button" role="tab" aria-controls="lexer" aria-selected="true">Lexer</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="ast-tab" data-bs-toggle="tab" data-bs-target="#ast" type="button" role="tab" aria-controls="ast" aria-selected="false">AST</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="parser-tab" data-bs-toggle="tab" data-bs-target="#parser" type="button" role="tab" aria-controls="parser" aria-selected="false">Parser</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="semantic-tab" data-bs-toggle="tab" data-bs-target="#semantic" type="button" role="tab" aria-controls="semantic" aria-selected="false">Semantic</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="ir-tab" data-bs-toggle="tab" data-bs-target="#ir" type="button" role="tab" aria-controls="ir" aria-selected="false">IR</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="canon-ir-tab" data-bs-toggle="tab" data-bs-target="#canon-ir" type="button" role="tab" aria-controls="canon-ir" aria-selected="false">Canon IR</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="assembly-tab" data-bs-toggle="tab" data-bs-target="#assembly" type="button" role="tab" aria-controls="assembly" aria-selected="false">Assembly</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="regalloc-tab" data-bs-toggle="tab" data-bs-target="#regalloc" type="button" role="tab" aria-controls="regalloc" aria-selected="false">Reg Alloc</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="final-assembly-tab" data-bs-toggle="tab" data-bs-target="#final-assembly" type="button" role="tab" aria-controls="final-assembly" aria-selected="false">Final</button>
+                            </li>
+                        </ul>
+                    </div>
+                    <div class="card-body">
+                        <div class="tab-content" id="result-tabs-content">
+                            <div class="tab-pane fade show active" id="lexer" role="tabpanel" aria-labelledby="lexer-tab">
+                                <pre id="lexer-output" class="result-output">Compile a program to see lexer output.</pre>
+                            </div>
+                            <div class="tab-pane fade" id="ast" role="tabpanel" aria-labelledby="ast-tab">
+                                <div id="ast-visualization" class="result-output">
+                                    <div id="ast-tree"></div>
+                                </div>
+                            </div>
+                            <div class="tab-pane fade" id="parser" role="tabpanel" aria-labelledby="parser-tab">
+                                <pre id="parser-output" class="result-output">Compile a program to see parser output.</pre>
+                            </div>
+                            <div class="tab-pane fade" id="semantic" role="tabpanel" aria-labelledby="semantic-tab">
+                                <pre id="semantic-output" class="result-output">Compile a program to see semantic analysis output.</pre>
+                            </div>
+                            <div class="tab-pane fade" id="ir" role="tabpanel" aria-labelledby="ir-tab">
+                                <pre id="ir-output" class="result-output">Compile a program to see IR output.</pre>
+                            </div>
+                            <div class="tab-pane fade" id="canon-ir" role="tabpanel" aria-labelledby="canon-ir-tab">
+                                <pre id="canon-ir-output" class="result-output">Compile a program to see canonized IR output.</pre>
+                            </div>
+                            <div class="tab-pane fade" id="assembly" role="tabpanel" aria-labelledby="assembly-tab">
+                                <pre id="assembly-output" class="result-output">Compile a program to see assembly output.</pre>
+                            </div>
+                            <div class="tab-pane fade" id="regalloc" role="tabpanel" aria-labelledby="regalloc-tab">
+                                <pre id="regalloc-output" class="result-output">Compile a program to see register allocation output.</pre>
+                            </div>
+                            <div class="tab-pane fade" id="final-assembly" role="tabpanel" aria-labelledby="final-assembly-tab">
+                                <pre id="final-assembly-output" class="result-output">Compile a program to see final assembly output.</pre>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="error-modal" tabindex="-1" aria-labelledby="error-modal-label" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="error-modal-label">Compilation Error</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <pre id="error-message"></pre>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/clike/clike.min.js"></script>
+    <script src="{{ url_for('static', filename='js/tiger-mode.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/ast-visualizer.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html> 

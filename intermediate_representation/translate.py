@@ -42,12 +42,30 @@ from semantic_analysis.environment import BaseEnvironmentManager
 
 
 def simple_variable(access: Access, level: Level) -> TranslatedExpression:
+    """
+    当在 g() 函数中访问 x 时，需要通过静态链找到 x 的定义位置
+let 
+  var x := 1
+  function f() = 
+    let 
+      function g() = x  /* 访问外层的x */
+    in
+      g()
+    end
+in
+  f()
+end
+    """
+    # 从当前帧的帧指针开始
     result = Temporary(frame.frame_pointer())
     current_level = level
+    # 从当前层级开始向上遍历
     while current_level is not access.level:
+        # 获取静态链（每个层级的第一个形参就是静态链）
         static_link_access = current_level.formals()[0]
         result = frame.access_to_exp(static_link_access.access, result)
         current_level = current_level.parent
+    # 最后访问目标变量
     return Expression(frame.access_to_exp(access.access, result))
 
 
@@ -227,16 +245,17 @@ def if_expression(
 
     patch_true_labels(test_condition.trues, true_label)
     patch_false_labels(test_condition.trues, false_label)
+        
 
     sequence = Sequence(
         [
-            test_condition.statement,
-            Label(true_label),
+            test_condition.statement,  # 条件测试
+            Label(true_label),     # then 分支开始
             Move(Temporary(result), then_expression),
-            Jump(Name(join_label), [join_label]),
-            Label(false_label),
+            Jump(Name(join_label),     [join_label]),     # 跳转到结束
+            Label(false_label),  # else 分支开始
             Move(Temporary(result), else_expression),
-            Label(join_label),
+            Label(join_label),    # if 结束点
         ]
     )
 

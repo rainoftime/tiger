@@ -34,3 +34,7 @@ class FragmentManager(ABC):
     @classmethod
     def get_fragments(cls) -> List[Fragment]:
         return cls.fragment_list
+
+    @classmethod
+    def reset(cls):
+        cls.fragment_list = []
