@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Yacc Semantic Actions Demo</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+            color: #333;
+        }
+        h1, h2, h3 {
+            color: #2c3e50;
+        }
+        pre {
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+            border-radius: 5px;
+            padding: 15px;
+            overflow-x: auto;
+            font-size: 14px;
+            line-height: 1.4;
+        }
+        .code-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        @media (min-width: 768px) {
+            .code-container {
+                flex-direction: row;
+            }
+        }
+        .code-panel {
+            flex: 1;
+            min-width: 0;
+        }
+        .code-panel h3 {
+            margin-top: 0;
+        }
+        textarea {
+            width: 100%;
+            height: 150px;
+            font-family: monospace;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background-color: #f8f8f8;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-size: 16px;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        #result {
+            font-weight: bold;
+            margin-top: 10px;
+            padding: 15px;
+            background-color: #f0f7ff;
+            border-radius: 5px;
+            border-left: 5px solid #3498db;
+        }
+        .highlight {
+            background-color: #ffffcc;
+            font-weight: bold;
+        }
+        .parsing-steps {
+            margin-top: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .step {
+            padding: 8px;
+            margin-bottom: 5px;
+            border-radius: 3px;
+        }
+        .step:nth-child(odd) {
+            background-color: #f8f8f8;
+        }
+        #errorMessage {
+            color: #e74c3c;
+            font-weight: bold;
+            margin-top: 10px;
+        }
+        .tab-container {
+            margin-top: 20px;
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 5px;
+            margin-bottom: 10px;
+        }
+        .tab-button {
+            padding: 8px 15px;
+            background-color: #eee;
+            border: 1px solid #ddd;
+            border-radius: 5px 5px 0 0;
+            cursor: pointer;
+        }
+        .tab-button.active {
+            background-color: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        .tab-content {
+            display: none;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 0 5px 5px 5px;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        
+        /* Code highlighting */
+        .keyword {
+            color: #569cd6;
+            font-weight: bold;
+        }
+        .comment {
+            color: #6a9955;
+            font-style: italic;
+        }
+        .string {
+            color: #ce9178;
+        }
+        .number {
+            color: #b5cea8;
+        }
+        .symbol {
+            color: #d4d4d4;
+        }
+        .semantic-action {
+            color: #dcdcaa;
+            background-color: #2d2d2d;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+        .token {
+            color: #4ec9b0;
+        }
+        .directive {
+            color: #c586c0;
+        }
+        .variable {
+            color: #9cdcfe;
+        }
+        .highlighted-line {
+            background-color: #2a3152;
+            display: block;
+            margin: -3px -15px;
+            padding: 3px 15px;
+        }
+        .step-animation {
+            transition: background-color 0.5s ease;
+        }
+        .step-animation.highlighted {
+            background-color: #fffacd;
+        }
+        .error {
+            color: #f14c4c;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Yacc 语义动作演示</h1>
+    
+    <p>这个演示展示了Yacc（或Bison）中语义动作如何工作，使用一个简单的计算器语法作为例子。
+    语义动作是在匹配产生式规则时执行的代码片段，它们允许你构建解析树、计算值或生成代码。</p>
+
+    <div class="tab-container">
+        <div class="tab-buttons">
+            <div class="tab-button active" onclick="showTab('demo')">交互式演示</div>
+            <div class="tab-button" onclick="showTab('explanation')">原理解释</div>
+            <div class="tab-button" onclick="showTab('details')">技术细节</div>
+        </div>
+        
+        <div class="tab-content active" id="demo">
+            <h2>带语义动作的计算器解析器</h2>
+            
+            <p>输入一个算术表达式（使用 +, -, *, / 和括号），查看解析器如何对其求值：</p>
+            
+            <textarea id="expressionInput">2 * (3 + 4)</textarea>
+            <div>
+                <button onclick="parseExpression()">计算表达式</button>
+            </div>
+            
+            <div id="errorMessage"></div>
+            <div id="result"></div>
+            
+            <h3>解析步骤</h3>
+            <div class="parsing-steps" id="parsingSteps"></div>
+        </div>
+        
+        <div class="tab-content" id="explanation">
+            <h2>Yacc中语义动作的工作原理</h2>
+            
+            <p>在Yacc（或Bison）中，语义动作是用花括号 <code>{ }</code> 包围的代码片段，
+            当产生式规则匹配时会执行这些代码。它们允许你：</p>
+            
+            <ul>
+                <li>在解析过程中计算值</li>
+                <li>构建抽象语法树</li>
+                <li>生成代码或其他输出</li>
+                <li>执行语义检查</li>
+            </ul>
+            
+            <p>下面的语法使用语义动作来计算算术表达式：</p>
+            
+            <pre>
+<span class="comment">/* Excerpt from calculator.y */</span>
+<span class="directive">%{</span>
+<span class="keyword">#include</span> <span class="string">&lt;stdio.h&gt;</span>
+<span class="keyword">#include</span> <span class="string">&lt;stdlib.h&gt;</span>
+<span class="directive">%}</span>
+
+<span class="directive">%token</span> <span class="token">NUMBER</span>
+<span class="directive">%left</span> <span class="symbol">'+'</span> <span class="symbol">'-'</span>
+<span class="directive">%left</span> <span class="symbol">'*'</span> <span class="symbol">'/'</span>
+<span class="directive">%right</span> <span class="token">UMINUS</span>
+
+<span class="directive">%%</span>
+
+<span class="highlighted-line">expr    : expr '+' expr   <span class="semantic-action">{ $$ = $1 + $3; }</span>  <span class="comment">/* Addition */</span></span>
+        | expr '-' expr   <span class="semantic-action">{ $$ = $1 - $3; }</span>  <span class="comment">/* Subtraction */</span>
+        | expr '*' expr   <span class="semantic-action">{ $$ = $1 * $3; }</span>  <span class="comment">/* Multiplication */</span>
+        | expr '/' expr   <span class="semantic-action">{                  
+            if ($3 == 0) {
+                yyerror("division by zero");
+            } else {
+                $$ = $1 / $3;
+            }
+          }</span>  <span class="comment">/* Division with error check */</span>
+        | '(' expr ')'    <span class="semantic-action">{ $$ = $2; }</span>       <span class="comment">/* Parenthesized expression */</span>
+        | '-' expr %prec UMINUS <span class="semantic-action">{ $$ = -$2; }</span> <span class="comment">/* Unary minus */</span>
+        | NUMBER          <span class="semantic-action">{ $$ = $1; }</span>       <span class="comment">/* Terminal value */</span>
+        ;
+<span class="directive">%%</span></pre>
+            
+            <h3>使用 $$ 和 $n 访问值</h3>
+            <p>在语义动作中，你可以使用特殊变量访问值：</p>
+            <ul>
+                <li><code class="variable">$$</code> 表示当前规则返回的值</li>
+                <li><code class="variable">$1</code>, <code class="variable">$2</code> 等表示产生式右侧符号的值</li>
+            </ul>
+            
+            <h3>示例：计算 2 * (3 + 4)</h3>
+            <p>在解析 <code>2 * (3 + 4)</code> 时，会发生以下过程：</p>
+            <ol>
+                <li>识别 <code class="number">3</code> 和 <code class="number">4</code> 作为 <code class="token">NUMBER</code> 终结符</li>
+                <li>应用 <code>expr : expr '+' expr <span class="semantic-action">{ $$ = $1 + $3; }</span></code> 得到 <code class="number">(3 + 4) = 7</code></li>
+                <li>应用 <code>expr : '(' expr ')' <span class="semantic-action">{ $$ = $2; }</span></code> 从括号表达式中获取值 <code class="number">7</code></li>
+                <li>识别 <code class="number">2</code> 作为 <code class="token">NUMBER</code> 终结符</li>
+                <li>应用 <code>expr : expr '*' expr <span class="semantic-action">{ $$ = $1 * $3; }</span></code> 得到 <code class="number">2 * 7 = 14</code></li>
+            </ol>
+        </div>
+        
+        <div class="tab-content" id="details">
+            <h2>技术实现</h2>
+            
+            <div class="code-container">
+                <div class="code-panel">
+                    <h3>词法分析器 (Lex)</h3>
+                    <pre>
+<span class="directive">%{</span>
+<span class="keyword">#include</span> <span class="string">"y.tab.h"</span>
+<span class="keyword">#include</span> <span class="string">&lt;stdlib.h&gt;</span>
+<span class="directive">%}</span>
+
+<span class="directive">%%</span>
+<span class="highlighted-line">[0-9]+      <span class="semantic-action">{ yylval = atoi(yytext); return NUMBER; }</span></span>
+[ \t\n]     ; <span class="comment">/* skip whitespace */</span>
+[-+*/()]    <span class="semantic-action">{ return yytext[0]; }</span>
+.           <span class="semantic-action">{ printf("Unknown character: %s\n", yytext); }</span>
+<span class="directive">%%</span>
+
+<span class="keyword">int</span> yywrap(<span class="keyword">void</span>) {
+    <span class="keyword">return</span> 1;
+}</pre>
+                </div>
+                
+                <div class="code-panel">
+                    <h3>解析器 (Yacc)</h3>
+                    <pre>
+<span class="directive">%{</span>
+<span class="keyword">#include</span> <span class="string">&lt;stdio.h&gt;</span>
+<span class="keyword">void</span> yyerror(<span class="keyword">char</span> *s);
+<span class="keyword">int</span> yylex(<span class="keyword">void</span>);
+<span class="directive">%}</span>
+
+<span class="directive">%token</span> <span class="token">NUMBER</span>
+<span class="directive">%left</span> <span class="symbol">'+'</span> <span class="symbol">'-'</span>
+<span class="directive">%left</span> <span class="symbol">'*'</span> <span class="symbol">'/'</span>
+<span class="directive">%right</span> <span class="token">UMINUS</span>
+
+<span class="directive">%%</span>
+
+program : expr                 <span class="semantic-action">{ printf("Result: %d\n", $1); }</span>
+        ;
+
+<span class="highlighted-line">expr    : expr '+' expr        <span class="semantic-action">{ $$ = $1 + $3; }</span></span>
+        | expr '-' expr        <span class="semantic-action">{ $$ = $1 - $3; }</span>
+        | expr '*' expr        <span class="semantic-action">{ $$ = $1 * $3; }</span>
+        | expr '/' expr        <span class="semantic-action">{
+            if ($3 == 0) {
+                yyerror("division by zero");
+                $$ = 0;
+            } else {
+                $$ = $1 / $3;
+            }
+          }</span>
+        | '(' expr ')'         <span class="semantic-action">{ $$ = $2; }</span>
+        | '-' expr %prec UMINUS <span class="semantic-action">{ $$ = -$2; }</span>
+        | NUMBER               <span class="semantic-action">{ $$ = $1; }</span>
+        ;
+
+<span class="directive">%%</span>
+
+<span class="keyword">void</span> yyerror(<span class="keyword">char</span> *s) {
+    fprintf(stderr, <span class="string">"Error: %s\n"</span>, s);
+}
+
+<span class="keyword">int</span> main(<span class="keyword">void</span>) {
+    yyparse();
+    <span class="keyword">return</span> 0;
+}</pre>
+                </div>
+            </div>
+            
+            <h3>编译过程</h3>
+            <ol>
+                <li>在 <code>.y</code> 文件中编写带有语义动作的语法</li>
+                <li>运行 Yacc/Bison: <code>yacc -d calculator.y</code></li>
+                <li>运行 Lex/Flex: <code>lex calculator.l</code></li>
+                <li>编译生成的 C 文件: <code>gcc lex.yy.c y.tab.c -o calculator</code></li>
+            </ol>
+            
+            <h3>值栈</h3>
+            <p>Yacc 在解析过程中维护一个值栈，用于存储语法符号的语义值（$1, $2 等）。
+            当一个产生式被归约时，语义动作被执行，结果值被压入栈中。</p>
+            
+            <h3>符号类型</h3>
+            <p>在更复杂的语法中，你可以为语法符号定义不同的类型：</p>
+            <pre>
+<span class="directive">%union</span> {
+    <span class="keyword">int</span> ival;
+    <span class="keyword">float</span> fval;
+    <span class="keyword">char</span> *sval;
+    <span class="keyword">struct</span> node *nodep;
+}
+
+<span class="directive">%token</span> <span class="variable">&lt;ival&gt;</span> <span class="token">INT_LITERAL</span>
+<span class="directive">%token</span> <span class="variable">&lt;fval&gt;</span> <span class="token">FLOAT_LITERAL</span>
+<span class="directive">%token</span> <span class="variable">&lt;sval&gt;</span> <span class="token">STRING_LITERAL</span>
+<span class="directive">%type</span> <span class="variable">&lt;nodep&gt;</span> <span class="token">expr term factor</span></pre>
+        </div>
+    </div>
+
+    <script>
+        // Simple calculator parser simulator
+        function parseExpression() {
+            const input = document.getElementById('expressionInput').value.trim();
+            const resultDiv = document.getElementById('result');
+            const parsingStepsDiv = document.getElementById('parsingSteps');
+            const errorDiv = document.getElementById('errorMessage');
+            
+            errorDiv.textContent = '';
+            parsingStepsDiv.innerHTML = '';
+            
+            try {
+                const steps = [];
+                
+                // This is a simplified parser for demonstration purposes
+                function evaluate(expression) {
+                    function addStep(rule, action, result) {
+                        steps.push({ rule, action, result });
+                    }
+                    
+                    // Remove all spaces
+                    expression = expression.replace(/\s+/g, '');
+                    
+                    // Parse expression
+                    return parseExpr(expression, 0).value;
+                    
+                    function parseExpr(expr, pos) {
+                        let result = parseTerm(expr, pos);
+                        pos = result.pos;
+                        let value = result.value;
+                        
+                        while (pos < expr.length && (expr[pos] === '+' || expr[pos] === '-')) {
+                            const op = expr[pos];
+                            pos++;
+                            const right = parseTerm(expr, pos);
+                            pos = right.pos;
+                            
+                            if (op === '+') {
+                                addStep(
+                                    "expr : expr '+' expr",
+                                    `$$ = $1 + $3 (${value} + ${right.value})`,
+                                    value + right.value
+                                );
+                                value += right.value;
+                            } else {
+                                addStep(
+                                    "expr : expr '-' expr",
+                                    `$$ = $1 - $3 (${value} - ${right.value})`,
+                                    value - right.value
+                                );
+                                value -= right.value;
+                            }
+                        }
+                        
+                        return { value, pos };
+                    }
+                    
+                    function parseTerm(expr, pos) {
+                        let result = parseFactor(expr, pos);
+                        pos = result.pos;
+                        let value = result.value;
+                        
+                        while (pos < expr.length && (expr[pos] === '*' || expr[pos] === '/')) {
+                            const op = expr[pos];
+                            pos++;
+                            const right = parseFactor(expr, pos);
+                            pos = right.pos;
+                            
+                            if (op === '*') {
+                                addStep(
+                                    "expr : expr '*' expr",
+                                    `$$ = $1 * $3 (${value} * ${right.value})`,
+                                    value * right.value
+                                );
+                                value *= right.value;
+                            } else {
+                                if (right.value === 0) {
+                                    throw new Error("除数不能为零");
+                                }
+                                addStep(
+                                    "expr : expr '/' expr",
+                                    `$$ = $1 / $3 (${value} / ${right.value})`,
+                                    value / right.value
+                                );
+                                value /= right.value;
+                            }
+                        }
+                        
+                        return { value, pos };
+                    }
+                    
+                    function parseFactor(expr, pos) {
+                        if (expr[pos] === '(') {
+                            pos++;
+                            const result = parseExpr(expr, pos);
+                            pos = result.pos;
+                            
+                            if (pos >= expr.length || expr[pos] !== ')') {
+                                throw new Error("缺少右括号");
+                            }
+                            
+                            addStep(
+                                "expr : '(' expr ')'",
+                                `$$ = $2 (${result.value})`,
+                                result.value
+                            );
+                            
+                            pos++;
+                            return { value: result.value, pos };
+                        } else if (expr[pos] === '-') {
+                            pos++;
+                            const result = parseFactor(expr, pos);
+                            
+                            addStep(
+                                "expr : '-' expr",
+                                `$$ = -$2 (-${result.value})`,
+                                -result.value
+                            );
+                            
+                            return { value: -result.value, pos: result.pos };
+                        } else if (/[0-9]/.test(expr[pos])) {
+                            let value = 0;
+                            while (pos < expr.length && /[0-9]/.test(expr[pos])) {
+                                value = value * 10 + parseInt(expr[pos]);
+                                pos++;
+                            }
+                            
+                            addStep(
+                                "expr : NUMBER",
+                                `$$ = $1 (${value})`,
+                                value
+                            );
+                            
+                            return { value, pos };
+                        } else {
+                            throw new Error(`位置 ${pos} 处有意外字符: ${expr[pos]}`);
+                        }
+                    }
+                }
+                
+                const result = evaluate(input);
+                
+                // Display parsing steps with animation
+                steps.forEach((step, index) => {
+                    const stepElement = document.createElement('div');
+                    stepElement.className = 'step step-animation';
+                    stepElement.innerHTML = `<strong>步骤 ${index + 1}:</strong> 应用规则 <code class="token">${step.rule}</code><br>` +
+                                            `语义动作: <code class="semantic-action">${step.action}</code><br>` +
+                                            `结果: <code class="number">${step.result}</code>`;
+                    parsingStepsDiv.appendChild(stepElement);
+                    
+                    // Add animation with slight delay for each step
+                    setTimeout(() => {
+                        stepElement.classList.add('highlighted');
+                        setTimeout(() => {
+                            stepElement.classList.remove('highlighted');
+                        }, 500);
+                    }, index * 200);
+                });
+                
+                resultDiv.innerHTML = `计算结果: <span class="highlight">${result}</span>`;
+                
+            } catch (error) {
+                errorDiv.innerHTML = `<span class="error">错误: ${error.message}</span>`;
+                resultDiv.textContent = '';
+            }
+        }
+        
+        function showTab(tabId) {
+            // Hide all tabs
+            document.querySelectorAll('.tab-content').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Show the selected tab
+            document.getElementById(tabId).classList.add('active');
+            document.querySelector(`.tab-button[onclick="showTab('${tabId}')"]`).classList.add('active');
+        }
+    </script>
+</body>
+</html>
