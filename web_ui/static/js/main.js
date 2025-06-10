@@ -1,17 +1,39 @@
-// Main JavaScript for the Tiger Compiler Web UI
+/**
+ * Tiger Compiler Web UI - Main JavaScript Module
+ * 
+ * This module provides the interactive functionality for the Tiger Compiler
+ * web interface. It handles code editing, compilation requests, file uploads,
+ * and result visualization.
+ * 
+ * Features:
+ * - CodeMirror-based code editor with Tiger syntax highlighting
+ * - Real-time compilation with phase-by-phase output
+ * - File upload and example loading
+ * - AST visualization
+ * - Error reporting and user feedback
+ * 
+ * Dependencies:
+ * - CodeMirror (code editor)
+ * - Bootstrap (UI components)
+ * - Custom Tiger mode for syntax highlighting
+ * - AST visualizer module
+ * 
+ * Author: Tiger Compiler Team
+ */
 
+// Wait for DOM to be fully loaded before initializing
 document.addEventListener('DOMContentLoaded', function() {
-    // Initialize CodeMirror editor
+    // Initialize CodeMirror editor with Tiger language support
     const editor = CodeMirror.fromTextArea(document.getElementById('code-editor'), {
-        mode: 'tiger',
-        theme: 'dracula',
-        lineNumbers: true,
-        indentUnit: 4,
-        tabSize: 4,
-        indentWithTabs: false,
-        autoCloseBrackets: true,
-        matchBrackets: true,
-        lineWrapping: true
+        mode: 'tiger',              // Custom Tiger syntax highlighting mode
+        theme: 'dracula',           // Dark theme for better readability
+        lineNumbers: true,          // Show line numbers for debugging
+        indentUnit: 4,              // 4-space indentation
+        tabSize: 4,                 // Tab width of 4 spaces
+        indentWithTabs: false,      // Use spaces instead of tabs
+        autoCloseBrackets: true,    // Automatically close brackets and quotes
+        matchBrackets: true,        // Highlight matching brackets
+        lineWrapping: true          // Wrap long lines
     });
 
     // Set default content
