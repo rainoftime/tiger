@@ -1,3 +1,7 @@
+"""
+Linearize the IR tree.
+"""
+
 from typing import List, Tuple
 
 from activation_records.temp import TempManager
@@ -40,6 +44,7 @@ def noop_statement() -> Statement:
 
 
 def simplified_sequence(first: Statement, second: Statement) -> Statement:
+    """Simplify the sequence"""
     if is_noop(first):
         return second
     if is_noop(second):
@@ -48,6 +53,9 @@ def simplified_sequence(first: Statement, second: Statement) -> Statement:
 
 
 def do_expression(expression: Expression) -> Tuple[Statement, Expression]:
+    """Linearize the expression"""
+
+    # Binary operation
     if isinstance(expression, BinaryOperation):
         statement, new_expressions = reorder([expression.left, expression.right])
         return statement, BinaryOperation(

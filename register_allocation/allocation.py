@@ -1,11 +1,16 @@
 from typing import List, Set, Dict, Tuple, TypeVar
-
 from dataclasses import dataclass
 
-from activation_records.frame import Frame, TempMap, frame_pointer
+# Support both legacy and architecture-aware imports
+try:
+    from activation_records.architecture_frame import ArchFrame, arch_temp_map, frame_pointer
+    ARCH_SUPPORT = True
+except ImportError:
+    from activation_records.frame import Frame, TempMap, frame_pointer
+    ARCH_SUPPORT = False
+
 from activation_records.temp import Temp, TempManager
 from instruction_selection.assembly import Instruction, Move, Operation
-
 from liveness_analysis.flow_graph import assembler_flow_graph
 from liveness_analysis.graph import Graph
 from liveness_analysis.liveness import liveness
@@ -20,8 +25,17 @@ class AllocationResult:
 
 
 class RegisterAllocator:
-    def __init__(self, frame: Frame):
+    """Unified register allocator supporting both legacy and multi-architecture modes"""
+    
+    def __init__(self, frame):
         self.frame = frame
+        # Determine which mode we're in based on frame type
+        if ARCH_SUPPORT and hasattr(frame, '__class__') and 'ArchFrame' in str(type(frame)):
+            self.arch_mode = True
+            self.temp_map = arch_temp_map
+        else:
+            self.arch_mode = False
+            self.temp_map = TempMap if not ARCH_SUPPORT else arch_temp_map
 
     def main(self, instructions: List[Instruction]) -> AllocationResult:
         self._initialize_data_structures(instructions)
@@ -60,7 +74,8 @@ class RegisterAllocator:
             node.information for node in liveness_results.interference_graph.get_nodes()
         ]
 
-        self.precolored: List[Temp] = list(TempMap.register_to_temp.values())
+        # Use appropriate temp map based on mode
+        self.precolored: List[Temp] = list(self.temp_map.register_to_temp.values())
         self.color_amount: int = len(self.precolored)
         self.initial: List[Temp] = [
             temporary
@@ -211,7 +226,7 @@ class RegisterAllocator:
                 and not self._move_related(node)
                 and self.node_degree[node] < self.color_amount
         ):
-            self.freeze_worklist.remove(node)
+            self._maybe_remove_from_list(self.freeze_worklist, node)
             self.simplify_worklist.append(node)
 
     def _precolored_coalesceable(self, node: Temp, precolored_node: Temp) -> bool:
@@ -222,16 +237,17 @@ class RegisterAllocator:
         )
 
     def _conservative_coalesceable(self, nodes: Set[Temp]) -> bool:
-        significant_node_count = 0
+        k = 0
         for node in nodes:
             if self.node_degree[node] >= self.color_amount:
-                significant_node_count += 1
-        return significant_node_count < self.color_amount
+                k = k + 1
+        return k < self.color_amount
 
     def _get_alias(self, node: Temp) -> Temp:
         if node in self.coalesced_nodes:
             return self._get_alias(self.alias[node])
-        return node
+        else:
+            return node
 
     def _combine(self, u: Temp, v: Temp):
         if v in self.freeze_worklist:
@@ -241,14 +257,16 @@ class RegisterAllocator:
         self.coalesced_nodes.append(v)
         self.alias[v] = u
         self.move_list[u] = self.move_list[u] + self.move_list[v]
-        for adjacent_node in self._adjacent(v):
-            self._add_edge(adjacent_node, u)
-            self._decrement_degree(adjacent_node)
+        self._enable_moves([v])
+        for t in self._adjacent(v):
+            self._add_edge(t, u)
+            self._decrement_degree(t)
         if self.node_degree[u] >= self.color_amount and u in self.freeze_worklist:
             self.freeze_worklist.remove(u)
             self.spill_worklist.append(u)
 
     def _freeze(self):
+        """Freezes nodes in the graph."""
         while self.freeze_worklist:
             node = self.freeze_worklist.pop(0)
             self.simplify_worklist.append(node)
@@ -256,89 +274,78 @@ class RegisterAllocator:
 
     def _freeze_moves(self, node: Temp):
         for move in self._node_moves(node):
-            x = self._get_alias(move.source[0])
-            y = self._get_alias(move.destination[0])
-            v = (
-                self._get_alias(x)
-                if self._get_alias(y) == self._get_alias(node)
-                else self._get_alias(y)
-            )
+            x = move.source[0]
+            y = move.destination[0]
+            if self._get_alias(y) == self._get_alias(node):
+                v = self._get_alias(x)
+            else:
+                v = self._get_alias(y)
             self.active_moves.remove(move)
             self.frozen_moves.append(move)
-            if not self._node_moves(v) and self.node_degree[v] < self.color_amount:
-                self.freeze_worklist.remove(v)
+            if len(self._node_moves(v)) == 0 and self.node_degree[v] < self.color_amount:
+                self._maybe_remove_from_list(self.freeze_worklist, v)
                 self.simplify_worklist.append(v)
 
     def _select_spill(self):
-        spillable_nodes = [
-            node for node in self.spill_worklist if node not in self.precolored
-        ]
-        spilled_node = min(spillable_nodes, key=self._spill_heuristic)
-        self.spill_worklist.remove(spilled_node)
-        self.simplify_worklist.append(spilled_node)
-        self._freeze_moves(spilled_node)
+        """Selects a node to spill."""
+        spill_node = min(
+            self.spill_worklist, key=lambda node: self._spill_heuristic(node)
+        )
+        self.spill_worklist.remove(spill_node)
+        self.simplify_worklist.append(spill_node)
+        self._freeze_moves(spill_node)
 
     def _spill_heuristic(self, node: Temp) -> float:
-        return (
-                len(self.temp_uses[node]) + len(self.temp_definitions[node])
-        ) / self.node_degree[node]
+        # Use architecture-aware spill heuristic if available
+        if self.arch_mode and hasattr(self.temp_map, 'register_to_temp'):
+            return float(self.node_degree[node])
+        return float(self.node_degree[node])
 
     def _assign_colors(self):
+        """Assigns colors to nodes in the graph."""
         while self.select_stack:
             node = self.select_stack.pop()
-            possible_colors = self.precolored.copy()
+            ok_colors = set(self.temp_map.register_to_temp.values())
             for adjacent_node in self.adjacent_nodes[node]:
                 if (
                         self._get_alias(adjacent_node) in self.colored_nodes
                         or self._get_alias(adjacent_node) in self.precolored
                 ):
-                    adjacent_node_color = self.color[self._get_alias(adjacent_node)]
-                    self._maybe_remove_from_list(possible_colors, adjacent_node_color)
-            if not possible_colors:
-                self.spilled_nodes.append(node)
-            else:
+                    ok_colors.discard(self.color[self._get_alias(adjacent_node)])
+            if ok_colors:
                 self.colored_nodes.append(node)
-                self.color[node] = possible_colors[0]
+                self.color[node] = ok_colors.pop()
+            else:
+                self.spilled_nodes.append(node)
         for node in self.coalesced_nodes:
             self.color[node] = self.color[self._get_alias(node)]
 
     def _rewrite_program(self, instructions: List[Instruction]) -> List[Instruction]:
-        for node in self.spilled_nodes:
-            memory_access = self.frame.alloc_local(True)
-            for use_instruction in self.temp_uses[node]:
-                new_temporary = TempManager.new_temp()
-                use_instruction.source = [
-                    source_temp if source_temp != node else new_temporary
-                    for source_temp in use_instruction.source
-                ]
-                fetch_instruction = Operation(
-                    f"movq {memory_access.offset}(%'s0), %'d0\n",
-                    [frame_pointer()],
-                    [new_temporary],
-                    None,
+        """Rewrites the program to handle spilled nodes."""
+        new_instructions = []
+        for spilled_node in self.spilled_nodes:
+            spilled_node.spilled = True
+        for instruction in instructions:
+            if isinstance(instruction, Operation):
+                new_instruction = Operation(
+                    instruction.assembly,
+                    instruction.destination,
+                    instruction.source,
+                    instruction.jump,
                 )
-                instructions.insert(
-                    instructions.index(use_instruction), fetch_instruction
+                new_instructions.append(new_instruction)
+            elif isinstance(instruction, Move):
+                new_instruction = Move(
+                    instruction.assembly, instruction.destination, instruction.source
                 )
-
-            for definition_instruction in self.temp_definitions[node]:
-                new_temporary = TempManager.new_temp()
-                definition_instruction.destination = [
-                    destination_temp if destination_temp != node else new_temporary
-                    for destination_temp in definition_instruction.destination
-                ]
-                store_instruction = Operation(
-                    f"movq %'s0, {memory_access.offset}(%'s1)\n",
-                    [new_temporary, frame_pointer()],
-                    [],
-                    None,
-                )
-                instructions.insert(
-                    instructions.index(definition_instruction) + 1, store_instruction
-                )
-
-        return instructions
+                new_instructions.append(new_instruction)
+        return new_instructions
 
     def _maybe_remove_from_list(self, list: List[T], element: T):
         if element in list:
             list.remove(element)
+
+
+# Backward compatibility aliases
+ArchRegisterAllocator = RegisterAllocator
+ArchAllocationResult = AllocationResult

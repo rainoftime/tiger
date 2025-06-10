@@ -54,7 +54,7 @@ def reorder_blocks(statement_lists: List[List[Statement]]) -> List[List[Statemen
 
 
 def fix_jumps(statement_lists: List[List[Statement]]):
-    """"""
+    """Fix the jumps in the statement lists"""
     for index, statements in enumerate(statement_lists[:-1]):
         last_statement = statements[-1]
         if isinstance(last_statement, Jump):
