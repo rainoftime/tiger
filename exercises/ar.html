@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Activation Records Quiz</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+ :root{
+   --ok:#4caf50; --bad:#f44336; --border:#bbb;
+   --bg:#fafafa; --fg:#222; --accent:#1565c0;
+ }
+ body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:var(--bg);color:var(--fg);}
+ header{padding:1rem;background:var(--accent);color:#fff;text-align:center;}
+ main{padding:1rem;max-width:820px;margin:auto;}
+ h2{margin-top:2rem;color:var(--accent);}
+ .q{padding:1rem;border:1px solid var(--border);border-radius:6px;margin-bottom:.8rem;background:#fff;}
+ .q.correct{border-color:var(--ok);background:#f1f8f4;}
+ .q.wrong  {border-color:var(--bad);background:#fef5f5;}
+ label{display:block;padding:.3rem 0;cursor:pointer;}
+ button{padding:.6rem 1rem;margin:1.5rem 0;font-size:1rem;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;}
+ button:hover:not(:disabled){background:#0d47a1;}
+ button:disabled{opacity:.6;cursor:not-allowed;}
+ #result{font-weight:bold;font-size:1.1rem;margin-top:1rem;padding:1rem;border-radius:4px;}
+ #result.show{background:#e3f2fd;border:1px solid var(--accent);}
+ footer{padding:1rem;text-align:center;font-size:.85rem;color:#555;}
+ @media(max-width:500px){body{font-size:15px;}}
+</style>
+</head>
+<body>
+<header><h1>Activation Records – Self-Check Quiz</h1></header>
+<main>
+  <section id="trueFalse"><h2>True / False</h2></section>
+  <section id="mcq"><h2>Multiple Choice</h2></section>
+  <button id="submitBtn">Check Answers</button>
+  <div id="result"></div>
+</main>
+<footer>Based on "Activation Records" chapter. © 2024</footer>
+
+<script>
+const tfWrap = document.getElementById('trueFalse');
+const mcqWrap = document.getElementById('mcq');
+const submitBtn = document.getElementById('submitBtn');
+const resultBox = document.getElementById('result');
+
+// build true/false element
+function buildTF(q,i){
+  const div=document.createElement('div');
+  div.className='q';
+  div.dataset.correct=q.answer;
+  div.innerHTML=`<strong>T/F ${i+1}.</strong> ${q.question}
+    <label><input type="radio" name="tf${i}" value="true">True</label>
+    <label><input type="radio" name="tf${i}" value="false">False</label>`;
+  return div;
+}
+
+// build multiple choice element
+function buildMCQ(q,i){
+  const div=document.createElement('div');
+  div.className='q';
+  div.dataset.correct=q.answer; // store index
+  let optionsHTML='';
+  q.options.forEach((opt,idx)=>{
+    optionsHTML+=`<label><input type="radio" name="mc${i}" value="${idx}">${opt}</label>`;
+  });
+  div.innerHTML=`<strong>Q${i+1}.</strong> ${q.question}<br>${optionsHTML}`;
+  return div;
+}
+
+// evaluate answers
+function grade(){
+  let correct=0, total=0;
+  document.querySelectorAll('.q').forEach(div=>{
+    total++;
+    const sel = div.querySelector('input[type=radio]:checked');
+    if(sel && (sel.value==div.dataset.correct)){
+      correct++;
+      div.classList.add('correct');
+      div.classList.remove('wrong');
+    }else{
+      div.classList.add('wrong');
+      div.classList.remove('correct');
+    }
+  });
+  resultBox.textContent=`Score: ${correct} / ${total} (${Math.round(correct/total*100)}%)`;
+  resultBox.className='show';
+  submitBtn.disabled=true;
+}
+
+// Quiz data embedded directly
+const quizData = {
+  "trueFalse": [
+    { "question": "In C, local variables are destroyed when a function returns.", "answer": "true" },
+    { "question": "The combination of nested functions and function-valued variables forces some local variables to live longer than their enclosing function calls.", "answer": "true" },
+    { "question": "The Tiger language supports full higher-order functions.", "answer": "false" },
+    { "question": "A run-time stack usually grows toward higher memory addresses.", "answer": "false" },
+    { "question": "The frame pointer always contains the smallest (lowest) address of the current stack frame.", "answer": "false" },
+    { "question": "Accessing a value in a register is generally faster than accessing it in memory.", "answer": "true" },
+    { "question": "Caller-save registers must be preserved by the callee procedure.", "answer": "false" },
+    { "question": "On the MIPS, registers 16–23 are treated as callee-save.", "answer": "true" },
+    { "question": "Leaf procedures often do not allocate their own stack frame.", "answer": "true" },
+    { "question": "Passing parameters in registers reduces memory traffic compared with passing them on the stack.", "answer": "true" },
+    { "question": "In C, taking the address of a formal parameter is illegal.", "answer": "false" },
+    { "question": "A static link points to the frame of the most recent activation of the lexically enclosing function.", "answer": "true" },
+    { "question": "A display is implemented as a linked chain of static links stored inside every frame.", "answer": "false" },
+    { "question": "Lambda lifting can remove the need for static links by passing free variables as extra arguments.", "answer": "true" },
+    { "question": "In the Tiger compiler, F_access abstracts over whether a variable resides in a register or in the frame.", "answer": "true" },
+    { "question": "The extra parameter used as a static link is always marked as escaping.", "answer": "true" },
+    { "question": "The Temp module supplies an unlimited set of unique temporaries and labels.", "answer": "true" },
+    { "question": "A variable is said to escape if its address is taken with the & operator.", "answer": "true" },
+    { "question": "Non-escaping local variables must be stored in the stack frame.", "answer": "false" },
+    { "question": "FindEscape analysis must be executed after semantic analysis is finished.", "answer": "false" }
+  ],
+  "multipleChoice": [
+    {
+      "question": "Which combination of language features requires some locals to outlive their calling frames?",
+      "options": [
+        "A. Recursion only",
+        "B. Nested functions only",
+        "C. Nested functions plus function-valued variables",
+        "D. Global variables only"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "In a typical stack frame, which item is produced automatically by the CALL instruction?",
+      "options": [
+        "A. Static link",
+        "B. Return address",
+        "C. Outgoing argument area",
+        "D. Saved callee-save registers"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "The primary purpose of the frame pointer (FP) is to:",
+      "options": [
+        "A. Hold the address of the next instruction to execute",
+        "B. Serve as a stable base for accessing formals and locals",
+        "C. Mark the top of the heap",
+        "D. Store the program counter before a call"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "According to the calling convention cited, which MIPS registers are callee-save?",
+      "options": [
+        "A. 2–7",
+        "B. 8–15",
+        "C. 16–23",
+        "D. 24–31"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "Empirical studies show that very few procedures have more than how many arguments?",
+      "options": [
+        "A. One",
+        "B. Two",
+        "C. Three",
+        "D. Four"
+      ],
+      "answer": "3"
+    },
+    {
+      "question": "Which of the following is NOT a reason a value is written to the stack frame?",
+      "options": [
+        "A. The variable is accessed from a nested function.",
+        "B. The variable is passed by reference.",
+        "C. The value fits within a single register and never escapes.",
+        "D. There are insufficient registers due to spilling."
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "In caller-save convention, who is responsible for preserving a register's value across a call?",
+      "options": [
+        "A. The called function only",
+        "B. The calling function only",
+        "C. The operating system",
+        "D. No one; the value is assumed dead"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "Which data structure directly supports O(1) push and pop and naturally fits LIFO activation of procedures?",
+      "options": [
+        "A. Queue",
+        "B. Heap",
+        "C. Stack",
+        "D. Binary tree"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "What does the Tiger compiler's FindEscape pass compute?",
+      "options": [
+        "A. Register allocation",
+        "B. Type equivalence",
+        "C. Which variables need addresses beyond their declaring scope",
+        "D. Instruction scheduling"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "In the Frame module, a value stored at an offset from FP is represented by:",
+      "options": [
+        "A. InReg temp",
+        "B. InFrame offset",
+        "C. InHeap pointer",
+        "D. InDisplay index"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "What is the extra first element that Translate adds to a function's formal-parameter list?",
+      "options": [
+        "A. Return value slot",
+        "B. Saved program counter",
+        "C. Static link",
+        "D. Alignment padding"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "Which technique keeps an array of pointers, one per nesting depth, to access non-local variables?",
+      "options": [
+        "A. Static link chaining",
+        "B. Display",
+        "C. Lambda lifting",
+        "D. Register windows"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "If a variable's address is taken using C's & operator, the variable is said to:",
+      "options": [
+        "A. Spill",
+        "B. Inline",
+        "C. Escape",
+        "D. Collapse"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "Which of the following best describes \"leaf\" procedures?",
+      "options": [
+        "A. Procedures that call no other procedures",
+        "B. Procedures at the top of the call chain",
+        "C. Recursive procedures",
+        "D. Higher-order procedures"
+      ],
+      "answer": "0"
+    },
+    {
+      "question": "On modern RISC machines, the return address is usually passed:",
+      "options": [
+        "A. On the stack",
+        "B. In a designated register",
+        "C. In the heap",
+        "D. In a static global variable"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "Which file in the Tiger compiler specifically hides machine-dependent frame details from the rest of the compiler?",
+      "options": [
+        "A. translate.c",
+        "B. semant.c",
+        "C. frame.h",
+        "D. temp.c"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "What does Temp_newtemp() return?",
+      "options": [
+        "A. A fresh frame pointer",
+        "B. A unique temporary name",
+        "C. A new stack offset",
+        "D. A unique label"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "Which of these is a valid reason for a compiler to generate a move instruction in the view-shift phase even when parameters arrive in registers?",
+      "options": [
+        "A. To obey caller-save convention",
+        "B. To ensure parameters occupy consecutive memory for C's varargs",
+        "C. To free the parameter registers for the callee's own use",
+        "D. All of the above"
+      ],
+      "answer": "3"
+    },
+    {
+      "question": "Which stack frame area is used to store parameters for functions that the current function will call?",
+      "options": [
+        "A. Incoming arguments area",
+        "B. Saved registers area",
+        "C. Outgoing arguments area",
+        "D. Temporaries area"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "In the Frame abstraction, which function allocates space for a new local variable?",
+      "options": [
+        "A. F_newFrame",
+        "B. F_formals",
+        "C. F_allocLocal",
+        "D. Tr_newLevel"
+      ],
+      "answer": "2"
+    }
+  ]
+};
+
+// Build UI with embedded data
+quizData.trueFalse.forEach((q,i)=>tfWrap.appendChild(buildTF(q,i)));
+quizData.multipleChoice.forEach((q,i)=>mcqWrap.appendChild(buildMCQ(q,i)));
+submitBtn.addEventListener('click',grade);
+</script>
+</body>
+</html>

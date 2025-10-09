@@ -215,6 +215,7 @@ class RegisterAllocator:
             self.simplify_worklist.append(node)
 
     def _precolored_coalesceable(self, node: Temp, precolored_node: Temp) -> bool:
+        """Georage's conservative coalesceable algorithm"""
         return (
                 self.node_degree[node] < self.color_amount
                 or node in self.precolored
@@ -223,6 +224,7 @@ class RegisterAllocator:
 
     def _conservative_coalesceable(self, nodes: Set[Temp]) -> bool:
         significant_node_count = 0
+        """Briggs's conservative coalesceable algorithm"""
         for node in nodes:
             if self.node_degree[node] >= self.color_amount:
                 significant_node_count += 1

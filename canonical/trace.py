@@ -88,4 +88,10 @@ def trace_schedule(block: BasicBlock) -> List[Statement]:
     reordered_blocks = reorder_blocks(block.statement_lists)
     reordered_blocks.append([Label(block.label)])
     fix_jumps(reordered_blocks)
-    return [statement for block in reordered_blocks for statement in block]
+    # 将所有基本块中的语句展平为一个线性的语句列表
+    flattened_statements = []
+    for block in reordered_blocks:
+        for statement in block:
+            flattened_statements.append(statement)
+    
+    return flattened_statements
