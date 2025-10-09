@@ -1,0 +1,144 @@
+name: Deploy Exercises to GitHub Pages
+
+on:
+  # Runs on pushes targeting the default branch
+  push:
+    branches: ["main"]
+    paths:
+      - 'exercises/**'
+      - '.github/workflows/deploy-exercises.yml'
+
+  # Allows you to run this workflow manually from the Actions tab
+  workflow_dispatch:
+
+# Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Allow only one concurrent deployment, skipping runs queued between the run in-progress and latest queued.
+# However, do NOT cancel in-progress runs as we want to allow these production deployments to complete.
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  # Build job
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+        
+      - name: Create index page
+        run: |
+          mkdir -p _site
+          cat > _site/index.html << 'EOF'
+          <!DOCTYPE html>
+          <html lang="en">
+          <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Tiger Compiler Exercises</title>
+            <style>
+              :root {
+                --accent: #1565c0;
+                --bg: #fafafa;
+                --fg: #222;
+              }
+              body {
+                font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+                margin: 0;
+                padding: 2rem;
+                background: var(--bg);
+                color: var(--fg);
+                line-height: 1.6;
+              }
+              header {
+                max-width: 800px;
+                margin: 0 auto 2rem;
+                padding: 2rem;
+                background: var(--accent);
+                color: white;
+                border-radius: 8px;
+                text-align: center;
+              }
+              main {
+                max-width: 800px;
+                margin: 0 auto;
+              }
+              h1 { margin: 0; }
+              h2 { color: var(--accent); }
+              ul {
+                list-style: none;
+                padding: 0;
+              }
+              li {
+                margin: 1rem 0;
+                padding: 1rem;
+                background: white;
+                border: 1px solid #ddd;
+                border-radius: 6px;
+                transition: transform 0.2s, box-shadow 0.2s;
+              }
+              li:hover {
+                transform: translateY(-2px);
+                box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+              }
+              a {
+                color: var(--accent);
+                text-decoration: none;
+                font-weight: 500;
+                font-size: 1.1rem;
+              }
+              a:hover {
+                text-decoration: underline;
+              }
+              .description {
+                color: #666;
+                font-size: 0.9rem;
+                margin-top: 0.3rem;
+              }
+            </style>
+          </head>
+          <body>
+            <header>
+              <h1>🐯 Tiger Compiler Exercises</h1>
+              <p>Interactive exercises and quizzes for compiler construction</p>
+            </header>
+            <main>
+              <h2>Available Exercises</h2>
+              <ul>
+                <li>
+                  <a href="ar.html">Activation Records Quiz</a>
+                  <div class="description">Test your knowledge of activation records, stack frames, and calling conventions</div>
+                </li>
+              </ul>
+            </main>
+          </body>
+          </html>
+          EOF
+          
+      - name: Copy exercises
+        run: |
+          cp -r exercises/* _site/
+          
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+
+  # Deployment job
+  deploy:
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
+
