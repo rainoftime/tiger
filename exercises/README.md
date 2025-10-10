@@ -40,3 +40,5 @@ python -m http.server 8000
 2. Update the index page in `.github/workflows/deploy-exercises.yml` to include the new exercise
 3. Commit and push to deploy automatically
 
+
+
