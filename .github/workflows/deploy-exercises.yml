@@ -8,6 +8,12 @@ on:
       - 'exercises/**'
   workflow_dispatch:  # 允许手动触发
 
+# 设置权限以允许部署到 GitHub Pages
+permissions:
+  contents: write  # 允许推送到 gh-pages 分支
+  pages: write
+  id-token: write
+
 jobs:
   # 检测并部署
   deploy:
