@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Garbage Collection Quiz</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+ :root{
+   --ok:#4caf50; --bad:#f44336; --border:#bbb;
+   --bg:#fafafa; --fg:#222; --accent:#1565c0;
+ }
+ body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:var(--bg);color:var(--fg);}
+ header{padding:1rem;background:var(--accent);color:#fff;text-align:center;}
+ main{padding:1rem;max-width:820px;margin:auto;}
+ h2{margin-top:2rem;color:var(--accent);}
+ .q{padding:1rem;border:1px solid var(--border);border-radius:6px;margin-bottom:.8rem;background:#fff;}
+ .q.correct{border-color:var(--ok);background:#f1f8f4;}
+ .q.wrong  {border-color:var(--bad);background:#fef5f5;}
+ label{display:block;padding:.3rem 0;cursor:pointer;}
+ button{padding:.6rem 1rem;margin:1.5rem 0;font-size:1rem;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;}
+ button:hover:not(:disabled){background:#0d47a1;}
+ button:disabled{opacity:.6;cursor:not-allowed;}
+ #result{font-weight:bold;font-size:1.1rem;margin-top:1rem;padding:1rem;border-radius:4px;}
+ #result.show{background:#e3f2fd;border:1px solid var(--accent);}
+ footer{padding:1rem;text-align:center;font-size:.85rem;color:#555;}
+ @media(max-width:500px){body{font-size:15px;}}
+</style>
+</head>
+<body>
+<header><h1>Garbage Collection – Self-Check Quiz</h1></header>
+<main>
+  <section id="trueFalse"><h2>True / False</h2></section>
+  <section id="mcq"><h2>Multiple Choice</h2></section>
+  <button id="submitBtn">Check Answers</button>
+  <div id="result"></div>
+</main>
+<footer>Based on "Garbage Collection" chapter. © 2026</footer>
+
+<script>
+const tfWrap = document.getElementById('trueFalse');
+const mcqWrap = document.getElementById('mcq');
+const submitBtn = document.getElementById('submitBtn');
+const resultBox = document.getElementById('result');
+
+// build true/false element
+function buildTF(q,i){
+  const div=document.createElement('div');
+  div.className='q';
+  div.dataset.correct=q.answer;
+  div.innerHTML=`<strong>T/F ${i+1}.</strong> ${q.question}
+    <label><input type="radio" name="tf${i}" value="true">True</label>
+    <label><input type="radio" name="tf${i}" value="false">False</label>`;
+  return div;
+}
+
+// build multiple choice element
+function buildMCQ(q,i){
+  const div=document.createElement('div');
+  div.className='q';
+  div.dataset.correct=q.answer; // store index
+  let optionsHTML='';
+  q.options.forEach((opt,idx)=>{
+    optionsHTML+=`<label><input type="radio" name="mc${i}" value="${idx}">${opt}</label>`;
+  });
+  div.innerHTML=`<strong>Q${i+1}.</strong> ${q.question}<br>${optionsHTML}`;
+  return div;
+}
+
+// evaluate answers
+function grade(){
+  let correct=0, total=0;
+  document.querySelectorAll('.q').forEach(div=>{
+    total++;
+    const sel = div.querySelector('input[type=radio]:checked');
+    if(sel && (sel.value==div.dataset.correct)){
+      correct++;
+      div.classList.add('correct');
+      div.classList.remove('wrong');
+    }else{
+      div.classList.add('wrong');
+      div.classList.remove('correct');
+    }
+  });
+  resultBox.textContent=`Score: ${correct} / ${total} (${Math.round(correct/total*100)}%)`;
+  resultBox.className='show';
+  submitBtn.disabled=true;
+}
+
+// Quiz data embedded directly
+const quizData = {
+  "trueFalse": [
+    { "question": "In a mark-and-sweep garbage collector, the roots of the object graph are the program variables currently in scope.", "answer": "true" },
+    { "question": "During mark-and-sweep, the sweep phase reclaims every node that was not marked in the mark phase.", "answer": "true" },
+    { "question": "A recursive depth-first search used for marking may require more stack space than the entire heap in the worst case.", "answer": "true" },
+    { "question": "Pointer reversal can eliminate the need for an auxiliary stack during depth-first marking.", "answer": "true" },
+    { "question": "The sweep phase of mark-and-sweep also clears the mark bits in preparation for the next collection.", "answer": "true" },
+    { "question": "Reference counting can reclaim garbage cycles automatically.", "answer": "false" },
+    { "question": "Updating reference counts adds only negligible run-time cost to pointer assignments.", "answer": "false" },
+    { "question": "Copying garbage collection eliminates fragmentation by moving live objects into a contiguous region.", "answer": "true" },
+    { "question": "Cheney's copying algorithm relies on an explicit stack to perform breadth-first traversal.", "answer": "false" },
+    { "question": "After a copying collection, the entire old from-space is unreachable and may be reused wholesale.", "answer": "true" },
+    { "question": "Breadth-first copying normally gives better locality of reference than depth-first copying.", "answer": "false" },
+    { "question": "Generational collectors are built on the empirical observation that most objects die young.", "answer": "true" },
+    { "question": "A simple copying collector usually divides the heap into two semi-spaces of equal size.", "answer": "true" },
+    { "question": "For mark-and-sweep, the amortized cost per allocated word decreases as the heap size grows relative to live data.", "answer": "true" },
+    { "question": "External fragmentation occurs when free blocks are larger than the requested allocation size.", "answer": "false" },
+    { "question": "Using an array of freelists keyed by block size can speed up allocation in a mark-and-sweep collector.", "answer": "true" },
+    { "question": "The Forward operation in a copying collector installs a forwarding pointer inside the original object.", "answer": "true" },
+    { "question": "Recursive DFS is always preferred over an explicit stack because it is simpler and uses less memory.", "answer": "false" },
+    { "question": "With reference counting, the compiler must insert additional code at every pointer assignment.", "answer": "true" },
+    { "question": "Generational garbage collectors never require write barriers to track pointers from old to young generations.", "answer": "false" }
+  ],
+  "multipleChoice": [
+    {
+      "question": "Which phase of a mark-and-sweep collector is responsible for linking reclaimed blocks into the freelist?",
+      "options": [
+        "A. Mark phase",
+        "B. Sweep phase",
+        "C. Forward phase",
+        "D. Copy phase"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "What primary data structure does Cheney's algorithm use to avoid an explicit stack?",
+      "options": [
+        "A. The call stack",
+        "B. A linked list inside each object",
+        "C. The to-space region between 'scan' and 'next'",
+        "D. An external bitmap"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "In the cost formula c₁R + c₂H for mark-and-sweep, the term R denotes:",
+      "options": [
+        "A. Heap size",
+        "B. Size of reachable data",
+        "C. Number of roots",
+        "D. Free list length"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "Pointer reversal temporarily stores which of the following in an object's own fields?",
+      "options": [
+        "A. Mark bits",
+        "B. Reference counts",
+        "C. Stack links for DFS",
+        "D. Allocation timestamps"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "Which problem prevents pure reference counting from reclaiming all garbage?",
+      "options": [
+        "A. Memory leaks",
+        "B. Cyclic data structures",
+        "C. Fragmentation",
+        "D. Stack overflow"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "External fragmentation is best described as:",
+      "options": [
+        "A. Wasted space inside an allocated block",
+        "B. Free space scattered in blocks too small for new allocations",
+        "C. Copying overhead between semi-spaces",
+        "D. Unused bits in a mark table"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "The main advantage of a generational collector is that it:",
+      "options": [
+        "A. Requires no write barriers",
+        "B. Focuses collection effort where most garbage is expected",
+        "C. Eliminates the need for a freelist",
+        "D. Works only with reference counting"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "In a simple two-space copying collector, allocation of a new object typically involves:",
+      "options": [
+        "A. Searching the freelist for a block of exact size",
+        "B. Incrementing a 'next' pointer in to-space",
+        "C. Decrementing reference counts",
+        "D. Scanning the entire heap for free space"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "Which field is often repurposed as the forwarding pointer in a copied object?",
+      "options": [
+        "A. The last field",
+        "B. The first field",
+        "C. A hidden header word",
+        "D. A newly allocated side table entry"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "Suppose a mark-and-sweep heap has H words, of which R are reachable. The amount of memory reclaimed after a collection is:",
+      "options": [
+        "A. R words",
+        "B. H words",
+        "C. H − R words",
+        "D. H / 2 words"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "Which optimization can reduce the run-time overhead of reference counting?",
+      "options": [
+        "A. Write barriers",
+        "B. Data-flow aggregation of increments/decrements",
+        "C. Breadth-first traversal",
+        "D. Semi-space allocation"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "The remembered set in a generational collector records:",
+      "options": [
+        "A. All live objects in the youngest generation",
+        "B. Pointers from older to younger generations",
+        "C. Sizes of free blocks",
+        "D. Reference counts of old objects"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "Cheney's algorithm moves the 'scan' pointer forward until:",
+      "options": [
+        "A. It reaches the end of to-space",
+        "B. All objects have been marked",
+        "C. 'scan' equals 'next'",
+        "D. The freelist is empty"
+      ],
+      "answer": "2"
+    },
+    {
+      "question": "Which of the following is an internal fragmentation problem?",
+      "options": [
+        "A. Free space cannot satisfy a request because blocks are too small",
+        "B. Extra unused space exists inside an allocated block",
+        "C. Heap contains unreachable cycles",
+        "D. The mark stack overflows"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "In Algorithm 13.8, what triggers the creation of a forwarding pointer?",
+      "options": [
+        "A. Detecting a cycle",
+        "B. Copying an object to to-space for the first time",
+        "C. Incrementing reference count to zero",
+        "D. Encountering an external pointer"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "Which parameter most directly influences locality of reference in a copying collector?",
+      "options": [
+        "A. Heap size H",
+        "B. Choice between breadth-first and depth-first copy order",
+        "C. Number of generations",
+        "D. Reference count update frequency"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "The semi-depth-first variant of copying attempts to improve locality by:",
+      "options": [
+        "A. Using a bitmap instead of forwarding pointers",
+        "B. Copying a child object immediately after its parent when possible",
+        "C. Doubling the size of to-space",
+        "D. Avoiding any pointer reversal"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "Mark-and-sweep collectors often organize free blocks by size using:",
+      "options": [
+        "A. A single FIFO queue",
+        "B. An array of size-segregated freelists",
+        "C. A binary search tree keyed by address",
+        "D. A hash table keyed by reference count"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "Write barriers in generational collectors are primarily needed to:",
+      "options": [
+        "A. Prevent concurrent mutations",
+        "B. Detect pointer updates from old to young objects",
+        "C. Update reference counts lazily",
+        "D. Split oversized free blocks"
+      ],
+      "answer": "1"
+    },
+    {
+      "question": "If a copying collector's semi-spaces are each 32 MB and live data occupy 12 MB, how many megabytes are available for new allocations before the next collection?",
+      "options": [
+        "A. 12 MB",
+        "B. 20 MB",
+        "C. 32 MB",
+        "D. 52 MB"
+      ],
+      "answer": "1"
+    }
+  ]
+};
+
+// Build UI with embedded data
+quizData.trueFalse.forEach((q,i)=>tfWrap.appendChild(buildTF(q,i)));
+quizData.multipleChoice.forEach((q,i)=>mcqWrap.appendChild(buildMCQ(q,i)));
+submitBtn.addEventListener('click',grade);
+</script>
+</body>
+</html>

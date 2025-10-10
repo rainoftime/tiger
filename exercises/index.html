@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>Tiger Compiler – 练习题</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+ :root{
+   --primary:#1565c0;
+   --primary-dark:#0d47a1;
+   --bg:#fafafa;
+   --fg:#222;
+   --card-bg:#fff;
+   --border:#ddd;
+   --hover:#e3f2fd;
+   --available:#4caf50;
+   --coming:#999;
+ }
+ body{
+   font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+   margin:0;
+   background:var(--bg);
+   color:var(--fg);
+   line-height:1.6;
+ }
+ header{
+   padding:2rem 1rem;
+   background:linear-gradient(135deg,var(--primary),var(--primary-dark));
+   color:#fff;
+   text-align:center;
+   box-shadow:0 2px 8px rgba(0,0,0,0.1);
+ }
+ header h1{margin:0 0 0.5rem;font-size:2rem;}
+ header p{margin:0;opacity:0.9;font-size:1rem;}
+ main{
+   padding:2rem 1rem;
+   max-width:900px;
+   margin:auto;
+ }
+ .exercise-grid{
+   display:grid;
+   grid-template-columns:repeat(auto-fill,minmax(280px,1fr));
+   gap:1.5rem;
+   margin-top:2rem;
+ }
+ .card{
+   background:var(--card-bg);
+   border:1px solid var(--border);
+   border-radius:8px;
+   padding:1.5rem;
+   transition:transform 0.2s,box-shadow 0.2s;
+   cursor:pointer;
+   text-decoration:none;
+   color:inherit;
+   display:block;
+   position:relative;
+ }
+ .card:hover{
+   transform:translateY(-4px);
+   box-shadow:0 4px 12px rgba(0,0,0,0.15);
+ }
+ .card.available{border-left:4px solid var(--available);}
+ .card.coming-soon{
+   border-left:4px solid var(--coming);
+   opacity:0.7;
+   cursor:not-allowed;
+ }
+ .card h2{
+   margin:0 0 0.5rem;
+   font-size:1.3rem;
+   color:var(--primary);
+ }
+ .card.coming-soon h2{color:var(--coming);}
+ .card p{
+   margin:0;
+   font-size:0.95rem;
+   color:#555;
+ }
+ .badge{
+   display:inline-block;
+   padding:0.2rem 0.6rem;
+   border-radius:12px;
+   font-size:0.75rem;
+   font-weight:600;
+   text-transform:uppercase;
+   margin-top:0.8rem;
+ }
+ .badge.available{background:#e8f5e9;color:#2e7d32;}
+ .badge.coming{background:#f5f5f5;color:#666;}
+ footer{
+   padding:2rem 1rem;
+   text-align:center;
+   font-size:0.9rem;
+   color:#666;
+   margin-top:3rem;
+ }
+ @media(max-width:600px){
+   header h1{font-size:1.5rem;}
+   .exercise-grid{grid-template-columns:1fr;}
+ }
+</style>
+</head>
+<body>
+<header>
+  <h1>🐯 Tiger Compiler 练习题</h1>
+  <p>通过互动练习，掌握编译器构造的核心概念</p>
+</header>
+<main>
+  <div class="exercise-grid">
+    
+    <a href="ar.html" class="card available">
+      <h2>活动记录 (Activation Records)</h2>
+      <p>栈帧、调用约定、寄存器分配、静态链接与过程调用机制</p>
+      <span class="badge available">可用</span>
+    </a>
+
+    <a href="gc.html" class="card available">
+      <h2>垃圾回收 (Garbage Collection)</h2>
+      <p>标记清除、引用计数、复制收集、分代回收算法</p>
+      <span class="badge available">可用</span>
+    </a>
+
+    <div class="card coming-soon">
+      <h2>词法分析 (Lexical Analysis)</h2>
+      <p>正则表达式、有限自动机、词法单元识别</p>
+      <span class="badge coming">即将推出</span>
+    </div>
+
+    <div class="card coming-soon">
+      <h2>语法分析 (Parsing)</h2>
+      <p>上下文无关文法、LL/LR分析、抽象语法树构造</p>
+      <span class="badge coming">即将推出</span>
+    </div>
+
+    <div class="card coming-soon">
+      <h2>语义分析 (Semantic Analysis)</h2>
+      <p>符号表、类型检查、作用域规则</p>
+      <span class="badge coming">即将推出</span>
+    </div>
+
+    <div class="card coming-soon">
+      <h2>中间表示 (IR)</h2>
+      <p>IR树、翻译、逃逸分析</p>
+      <span class="badge coming">即将推出</span>
+    </div>
+
+    <div class="card coming-soon">
+      <h2>规范化 (Canonicalization)</h2>
+      <p>基本块、线性化、轨迹调度</p>
+      <span class="badge coming">即将推出</span>
+    </div>
+
+    <div class="card coming-soon">
+      <h2>指令选择 (Instruction Selection)</h2>
+      <p>树模式匹配、汇编代码生成</p>
+      <span class="badge coming">即将推出</span>
+    </div>
+
+    <div class="card coming-soon">
+      <h2>活跃性分析 (Liveness Analysis)</h2>
+      <p>数据流分析、控制流图、活跃变量</p>
+      <span class="badge coming">即将推出</span>
+    </div>
+
+    <div class="card coming-soon">
+      <h2>寄存器分配 (Register Allocation)</h2>
+      <p>图着色、溢出处理、寄存器合并</p>
+      <span class="badge coming">即将推出</span>
+    </div>
+
+  </div>
+</main>
+<footer>
+  Tiger Compiler 教学项目 © 2026
+</footer>
+</body>
+</html>
+
