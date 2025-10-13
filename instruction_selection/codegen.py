@@ -1,3 +1,27 @@
+"""
+Tiger Compiler - Instruction Selection (Code Generation)
+
+This module implements the instruction selection phase of the Tiger compiler,
+converting intermediate representation (IR) trees into assembly language instructions.
+
+The instruction selection process:
+1. **Pattern Matching**: Recognizes IR tree patterns and maps them to machine instructions
+2. **Tree Traversal**: Recursively processes IR trees using a bottom-up approach
+3. **Register Management**: Manages temporary variables and physical registers
+4. **Instruction Emission**: Generates x86-64 assembly code in AT&T syntax
+
+Architecture:
+- Uses a recursive descent approach for pattern matching
+- Generates code for x86-64 architecture with System V ABI
+- Handles all IR constructs: statements, expressions, control flow
+- Manages calling conventions and stack frame layout
+
+Target Architecture: x86-64 (AT&T syntax)
+Calling Convention: System V ABI
+
+Author: Tiger Compiler Project
+"""
+
 from typing import List
 from abc import ABC
 import instruction_selection.assembly as Assembly
@@ -6,57 +30,102 @@ import activation_records.temp as Temp
 import activation_records.frame as Frame
 
 
-# x86-64
-# AT&T syntax:
-# instruction source, destination
-# System V ABI
-
-# Addressing modes for source operands in 'mov src, dst'
-# $val: is a constant value
-# %R: is a register
-# 0xaddr: source read from Mem[0xaddr]
-# (%R): source read from Mem[%R], where R is a register
-# D(%R): source read from Mem[%R+D] where D is the displacement and R is a register
+# x86-64 Assembly Target
+# ======================
+# AT&T syntax: instruction source, destination
+# System V ABI calling convention
+#
+# Addressing modes for source operands in 'mov src, dst':
+# $val: immediate constant value
+# %R: register reference
+# 0xaddr: absolute memory address
+# (%R): memory at address in register R
+# D(%R): memory at address R + displacement D
 
 
 def convert_relational_operator(operator: IRT.RelationalOperator) -> str:
+    """
+    Convert IR relational operator to x86-64 jump instruction mnemonic.
+
+    Maps Tiger IR comparison operators to their corresponding x86-64
+    conditional jump instructions.
+
+    Args:
+        operator (IRT.RelationalOperator): The IR comparison operator
+
+    Returns:
+        str: Corresponding x86-64 jump instruction (e.g., "je", "jl", "jg")
+
+    Note:
+        Jump instructions check the processor flags set by CMP or TEST instructions.
+        The mapping follows standard x86-64 conditional jump semantics.
+    """
     conversion_dictionary = {
-        IRT.RelationalOperator.eq: "je",
-        IRT.RelationalOperator.ne: "jne",
-        IRT.RelationalOperator.lt: "jl",
-        IRT.RelationalOperator.gt: "jg",
-        IRT.RelationalOperator.le: "jle",
-        IRT.RelationalOperator.ge: "jge",
-        IRT.RelationalOperator.ult: "jb",
-        IRT.RelationalOperator.ule: "jbe",
-        IRT.RelationalOperator.ugt: "ja",
-        IRT.RelationalOperator.uge: "jae",
+        IRT.RelationalOperator.eq: "je",    # Jump if equal (ZF=1)
+        IRT.RelationalOperator.ne: "jne",   # Jump if not equal (ZF=0)
+        IRT.RelationalOperator.lt: "jl",    # Jump if less (signed, SF≠OF)
+        IRT.RelationalOperator.gt: "jg",    # Jump if greater (signed, ZF=0 and SF=OF)
+        IRT.RelationalOperator.le: "jle",   # Jump if less or equal (signed)
+        IRT.RelationalOperator.ge: "jge",   # Jump if greater or equal (signed)
+        IRT.RelationalOperator.ult: "jb",   # Jump if below (unsigned, CF=1)
+        IRT.RelationalOperator.ule: "jbe",  # Jump if below or equal (unsigned)
+        IRT.RelationalOperator.ugt: "ja",   # Jump if above (unsigned, CF=0 and ZF=0)
+        IRT.RelationalOperator.uge: "jae",  # Jump if above or equal (unsigned)
     }
     return conversion_dictionary[operator]
 
 
-# There are two operators for multiplication and division, one for
-# signed values and another for unsigned ones.
-# Currently, using signed version of mul and div.
 def convert_binary_operator(operator: IRT.BinaryOperator) -> str:
+    """
+    Convert IR binary operator to x86-64 instruction mnemonic.
+
+    Maps Tiger IR binary operators to their corresponding x86-64
+    arithmetic and logical instructions.
+
+    Args:
+        operator (IRT.BinaryOperator): The IR binary operator
+
+    Returns:
+        str: Corresponding x86-64 instruction (e.g., "addq", "subq", "imulq")
+
+    Note:
+        Uses signed versions of multiplication and division (imulq, idivq).
+        Shift operations use arithmetic shifts for signed integers.
+    """
     conversion_dictionary = {
-        IRT.BinaryOperator.plus: "addq",
-        IRT.BinaryOperator.minus: "subq",
-        IRT.BinaryOperator.mul: "imulq",
-        IRT.BinaryOperator.div: "idivq",
-        IRT.BinaryOperator.andOp: "andq",
-        IRT.BinaryOperator.orOp: "orq",
-        IRT.BinaryOperator.lshift: "salq",
-        IRT.BinaryOperator.rshift: "sarq",
-        IRT.BinaryOperator.arshift: "shrq",
-        IRT.BinaryOperator.xor: "xorq",
+        IRT.BinaryOperator.plus: "addq",     # Add quadword (64-bit)
+        IRT.BinaryOperator.minus: "subq",    # Subtract quadword
+        IRT.BinaryOperator.mul: "imulq",     # Signed multiply quadword
+        IRT.BinaryOperator.div: "idivq",     # Signed divide quadword
+        IRT.BinaryOperator.andOp: "andq",    # Bitwise AND quadword
+        IRT.BinaryOperator.orOp: "orq",      # Bitwise OR quadword
+        IRT.BinaryOperator.lshift: "salq",   # Shift left arithmetic quadword
+        IRT.BinaryOperator.rshift: "sarq",   # Shift right arithmetic quadword
+        IRT.BinaryOperator.arshift: "shrq",  # Shift right logical quadword
+        IRT.BinaryOperator.xor: "xorq",      # Bitwise XOR quadword
     }
     return conversion_dictionary[operator]
 
 
 def munch_statement(stmNode: IRT.Statement) -> None:
-    # Label(label): The constant value of name 'label', defined to be the current
-    # machine code address.
+    """
+    Generate assembly code for an IR statement using pattern matching.
+
+    This is the core function of instruction selection. It recursively
+    traverses IR statement trees and generates corresponding assembly
+    instructions using a pattern matching approach.
+
+    The function uses the "munch" algorithm:
+    1. Match the top-level IR construct to an assembly template
+    2. Recursively generate code for subexpressions
+    3. Emit the matched assembly instruction(s)
+
+    Args:
+        stmNode (IRT.Statement): The IR statement node to generate code for
+
+    Note:
+        This function modifies global state by emitting instructions to Codegen.
+    """
     if isinstance(stmNode, IRT.Label):
         Codegen.emit(Assembly.Label(line=f"{stmNode.label}:\n", label=stmNode.label))
 

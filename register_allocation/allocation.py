@@ -1,5 +1,32 @@
-from typing import List, Set, Dict, Tuple, TypeVar
+"""
+Graph Coloring Register Allocator for Tiger Compiler
 
+This module implements graph coloring register allocation using the algorithm
+described in "Modern Compiler Implementation in ML" by Andrew Appel.
+
+The register allocator:
+1. **Builds interference graph** from liveness information
+2. **Colors the graph** using graph coloring heuristics
+3. **Handles spills** when coloring fails (not enough registers)
+4. **Coalesces** move instructions to eliminate unnecessary copies
+
+Algorithm Overview:
+- Simplify: Remove non-constrained temporaries and push on stack
+- Coalesce: Merge move-related temporaries when safe
+- Freeze: Freeze low-degree move-related temporaries
+- Spill: Select spill candidates when no other options exist
+- Select: Pop stack and assign colors (register mappings)
+
+Key Data Structures:
+- Interference Graph: Nodes represent temporaries, edges represent conflicts
+- Worklists: Separate queues for different types of temporaries
+- Coloring: Mapping from temporaries to physical registers
+- Spilling: When not enough registers, some temporaries go to memory
+
+Author: Tiger Compiler Project
+"""
+
+from typing import List, Set, Dict, Tuple, TypeVar
 from dataclasses import dataclass
 
 from activation_records.frame import Frame, TempMap, frame_pointer
@@ -15,17 +42,66 @@ T = TypeVar("T")
 
 @dataclass
 class AllocationResult:
+    """
+    Result of register allocation process.
+
+    Contains the final instruction sequence with register assignments
+    and the mapping from temporary variables to physical registers.
+
+    Attributes:
+        instructions (List[Instruction]): Assembly instructions with registers assigned
+        temp_to_register (Dict[Temp, Temp]): Mapping from temporaries to registers
+    """
     instructions: List[Instruction]
     temp_to_register: Dict[Temp, Temp]
 
 
 class RegisterAllocator:
+    """
+    Graph coloring register allocator for a single function frame.
+
+    This class implements the complete register allocation algorithm for one function,
+    including interference graph construction, graph coloring, and spill code generation.
+
+    The allocator uses a worklist-based algorithm with four main phases:
+    - Simplify: Remove easy-to-color nodes
+    - Coalesce: Merge compatible move instructions
+    - Freeze: Freeze low-degree move-related nodes
+    - Spill: Select nodes to spill to memory when coloring fails
+
+    Attributes:
+        frame (Frame): The stack frame for the function being allocated
+    """
+
     def __init__(self, frame: Frame):
+        """
+        Initialize register allocator for a specific function frame.
+
+        Args:
+            frame (Frame): Stack frame containing register and memory layout info
+        """
         self.frame = frame
 
     def main(self, instructions: List[Instruction]) -> AllocationResult:
+        """
+        Perform complete register allocation for a function.
+
+        This method runs the full register allocation algorithm:
+        1. Initialize data structures (interference graph, worklists)
+        2. Iteratively apply simplify/coalesce/freeze/spill until no work remains
+        3. Assign colors (register mappings) to all temporaries
+        4. If spills occurred, rewrite program and restart allocation
+
+        Args:
+            instructions (List[Instruction]): Assembly instructions to allocate
+
+        Returns:
+            AllocationResult: Final instructions with registers assigned and temp->register mapping
+        """
+        # Initialize all data structures from liveness analysis
         self._initialize_data_structures(instructions)
 
+        # Main allocation loop: continue until all worklists are empty
         while (
                 self.simplify_worklist
                 or self.worklist_moves
@@ -33,63 +109,85 @@ class RegisterAllocator:
                 or self.spill_worklist
         ):
             if self.simplify_worklist:
-                self._simplify()
+                self._simplify()      # Remove non-constrained temporaries
             elif self.worklist_moves:
-                self._coalesce()
+                self._coalesce()     # Merge compatible moves
             elif self.freeze_worklist:
-                self._freeze()
+                self._freeze()       # Freeze low-degree move-related nodes
             elif self.spill_worklist:
-                self._select_spill()
+                self._select_spill() # Select spill candidates
 
+        # Assign final register mappings (colors) to all temporaries
         self._assign_colors()
+
+        # If any temporaries were spilled to memory, rewrite program and retry
         if self.spilled_nodes:
             new_instructions = self._rewrite_program(instructions)
-            return self.main(new_instructions)
+            return self.main(new_instructions)  # Recursive retry after spilling
 
+        # Success: return final allocation result
         return AllocationResult(instructions, self.color)
 
     def _initialize_data_structures(self, instructions: List[Instruction]):
+        """
+        Initialize all data structures needed for register allocation.
+
+        This method builds the foundation for the allocation algorithm by:
+        1. Constructing control flow graph from assembly instructions
+        2. Computing liveness information and interference graph
+        3. Categorizing temporaries into different worklists
+        4. Setting up adjacency and coloring data structures
+
+        Args:
+            instructions (List[Instruction]): Assembly instructions to analyze
+        """
+        # Build control flow graph and extract use/def information
         flow_graph_results = assembler_flow_graph(instructions)
         self.temp_uses: Dict[Temp, List[Instruction]] = flow_graph_results.temp_uses
-        self.temp_definitions: Dict[
-            Temp, List[Instruction]
-        ] = flow_graph_results.temp_definitions
+        self.temp_definitions: Dict[Temp, List[Instruction]] = flow_graph_results.temp_definitions
 
+        # Compute liveness information and build interference graph
         liveness_results = liveness(flow_graph_results.flow_graph)
         all_temporaries = [
             node.information for node in liveness_results.interference_graph.get_nodes()
         ]
 
+        # Separate precolored (machine register) temporaries from user temporaries
         self.precolored: List[Temp] = list(TempMap.register_to_temp.values())
-        self.color_amount: int = len(self.precolored)
+        self.color_amount: int = len(self.precolored)  # Number of available registers
         self.initial: List[Temp] = [
             temporary
             for temporary in all_temporaries
-            if temporary not in self.precolored
+            if temporary not in self.precolored  # User-defined temporaries only
         ]
 
-        self.simplify_worklist: List[Temp] = []
-        self.freeze_worklist: List[Temp] = []
-        self.spill_worklist: List[Temp] = []
-        self.spilled_nodes: List[Temp] = []
-        self.coalesced_nodes: List[Temp] = []
-        self.colored_nodes: List[Temp] = []
-        self.select_stack: List[Temp] = []
+        # Initialize worklists for different types of temporaries
+        self.simplify_worklist: List[Temp] = []  # Low-degree non-move-related temps
+        self.freeze_worklist: List[Temp] = []    # Low-degree move-related temps
+        self.spill_worklist: List[Temp] = []     # High-degree temps (spill candidates)
+        self.spilled_nodes: List[Temp] = []      # Temporaries that were spilled
+        self.coalesced_nodes: List[Temp] = []    # Temporaries that were coalesced
+        self.colored_nodes: List[Temp] = []      # Temporaries with assigned colors
+        self.select_stack: List[Temp] = []       # Stack for coloring algorithm
 
-        self.coalesced_moves: List[Move] = []
-        self.constrained_moves: List[Move] = []
-        self.frozen_moves: List[Move] = []
-        self.worklist_moves: List[Move] = liveness_results.move_instructions
-        self.active_moves: List[Move] = []
+        # Initialize move-related data structures
+        self.coalesced_moves: List[Move] = []    # Successfully coalesced moves
+        self.constrained_moves: List[Move] = []  # Moves that couldn't be coalesced
+        self.frozen_moves: List[Move] = []       # Frozen moves (no longer considered)
+        self.worklist_moves: List[Move] = liveness_results.move_instructions  # Moves to consider
+        self.active_moves: List[Move] = []       # Moves involving colored temps
 
+        # Set up graph structures from interference analysis
         self._initialize_adjacency_structures(liveness_results.interference_graph)
         self.move_list: Dict[Temp, List[Move]] = liveness_results.temporary_to_moves
 
-        self.alias: Dict[Temp, Temp] = {}
+        # Initialize coloring and aliasing mappings
+        self.alias: Dict[Temp, Temp] = {}  # Maps coalesced temps to their canonical temp
         self.color: Dict[Temp, Temp] = {
-            temporary: temporary for temporary in self.precolored
+            temporary: temporary for temporary in self.precolored  # Precolored temps map to themselves
         }
 
+        # Populate initial worklists based on temporary properties
         self._make_worklist()
 
     def _initialize_adjacency_structures(self, interference_graph: Graph[Temp]):

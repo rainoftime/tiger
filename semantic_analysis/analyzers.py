@@ -1,14 +1,30 @@
 """
-translate_program
+Tiger Programming Language Semantic Analyzer
 
-translate_variable
-translate_expression
-translate_declaration
-translate_type
+This module implements the semantic analysis phase of the Tiger compiler.
+Semantic analysis performs several critical functions:
+
+1. **Type Checking**: Verifies that all expressions and declarations have valid types
+2. **Type Translation**: Converts AST types to semantic types with proper resolution
+3. **Escape Analysis**: Determines which variables need to be heap-allocated
+4. **Intermediate Representation Generation**: Translates typed AST to IR trees
+5. **Symbol Resolution**: Resolves all variable and function references
+
+The semantic analyzer processes the entire program in multiple passes:
+- First pass: Escape analysis to determine variable allocation
+- Second pass: Type checking and IR translation
+- Type resolution: Eliminates type aliases and resolves forward references
+
+Key Components:
+- TypedExpression: Combines IR expressions with their semantic types
+- SemanticError: Custom exception for semantic analysis errors
+- Type resolution functions: Handle type aliases and recursive types
+- Translation functions: Convert AST nodes to typed IR expressions
+
+Author: Tiger Compiler Project
 """
 
 from typing import Set, Optional, Union, List
-
 from dataclasses import dataclass
 
 import parser.ast_nodes as ast
@@ -43,11 +59,33 @@ from semantic_analysis.types import (
 
 @dataclass
 class TypedExpression:
+    """
+    A typed expression combining an IR expression with its semantic type.
+
+    This class represents the result of semantic analysis for expressions,
+    containing both the intermediate representation tree and the resolved type
+    information needed for code generation.
+
+    Attributes:
+        expression (TranslatedExpression): The IR tree representation
+        type (Type): The semantic type of the expression
+    """
     expression: TranslatedExpression
     type: Type
 
 
 class SemanticError(Exception):
+    """
+    Exception raised when semantic analysis detects an error.
+
+    Semantic errors include type mismatches, undefined variables,
+    incorrect function calls, and other static semantic violations.
+
+    Attributes:
+        message (str): Description of the semantic error
+        position (int): Line number where the error occurred
+    """
+
     def __init__(self, message: str, position: int):
         self.message = message
         self.position = position
@@ -59,15 +97,30 @@ class SemanticError(Exception):
 def simplify_type_aliases(
         type_name: str, type_env: SymbolTable[Type], already_seen: Set[str]
 ) -> Optional[Type]:
-    """Goes through a chain of type aliases and makes them all point to the referenced type.
+    """
+    Resolve type aliases by following chains of type references.
 
-    This function recursively moves through the chain, keeping track of already seen type aliases.
-    If at some point it sees one that has already been visited, it detects a loop and returns None.
-    If not, it eventually finds a record or array definition, and goes back the chain updating all
-    visited type aliases, so they point to the corresponding type."""
+    This function recursively traverses chains of type aliases (NameType references)
+    to find the actual type definition. It handles recursive type definitions by
+    tracking already visited types and detecting cycles.
 
+    Args:
+        type_name (str): Name of the type to resolve
+        type_env (SymbolTable[Type]): Type environment containing type definitions
+        already_seen (Set[str]): Set of type names already visited in this resolution chain
+
+    Returns:
+        Optional[Type]: The resolved type if no cycles detected, None if cyclic reference found
+
+    Raises:
+        KeyError: If the type name is not found in the environment
+
+    Example:
+        If we have: type A = B; type B = int;
+        Then simplify_type_aliases("A", ...) will return IntType
+    """
     if type_name in already_seen:
-        return None
+        return None  # Cycle detected in type aliases
     type_definition = type_env.find(type_name)
     if isinstance(type_definition, NameType):
         already_seen.add(type_name)
@@ -75,22 +128,52 @@ def simplify_type_aliases(
             type_definition.symbol, type_env, already_seen
         )
         if alias_type is not None:
-            type_env.add(type_name, alias_type)
+            type_env.add(type_name, alias_type)  # Update with resolved type
         return alias_type
     return type_definition
 
 
 def maybe_lookup_name_type(type_definition: Type, type_env: SymbolTable[Type]) -> Type:
-    """If the given type is a name reference, returns the referenced type."""
+    """
+    Resolve a single level of type alias if the type is a name reference.
 
+    This is a helper function that resolves one level of type aliasing.
+    If the type is a NameType, it looks up the referenced type in the environment.
+    Otherwise, it returns the type as-is.
+
+    Args:
+        type_definition (Type): The type to potentially resolve
+        type_env (SymbolTable[Type]): Type environment for name lookups
+
+    Returns:
+        Type: Either the resolved type (if it was a NameType) or the original type
+
+    Example:
+        If type_definition is NameType("myInt") and myInt maps to IntType,
+        this returns IntType. Otherwise returns type_definition unchanged.
+    """
     if isinstance(type_definition, NameType):
         return type_env.find(type_definition.symbol)
     return type_definition
 
 
 def eliminate_name_types(type_definition: Type, type_env: SymbolTable[Type]):
-    """Given an array of record type definition, eliminates all its name references."""
+    """
+    Recursively eliminate all name type references in a type definition.
 
+    This function traverses a type definition and replaces all NameType references
+    with their actual type definitions. Used to fully resolve type aliases before
+    code generation.
+
+    Args:
+        type_definition (Type): The type definition to process
+        type_env (SymbolTable[Type]): Type environment for name resolution
+
+    Note:
+        This function modifies the type_definition in-place for efficiency.
+        For arrays, it resolves the element type.
+        For records, it resolves all field types.
+    """
     if isinstance(type_definition, ArrayType):
         type_definition.type = maybe_lookup_name_type(type_definition.type, type_env)
     if isinstance(type_definition, RecordType):
@@ -103,8 +186,22 @@ def eliminate_name_types(type_definition: Type, type_env: SymbolTable[Type]):
 def check_name_uniqueness(
         declaration_list: Union[List[ast.FunctionDec], List[ast.TypeDec]]
 ) -> bool:
-    """Checks if all names in a function or type declaration block are unique."""
+    """
+    Check that all names in a declaration block are unique.
 
+    Ensures that function names and type names don't conflict within
+    the same declaration block, preventing ambiguous references.
+
+    Args:
+        declaration_list: List of function or type declarations to check
+
+    Returns:
+        bool: True if all names are unique, False if duplicates found
+
+    Example:
+        If declaration_list contains two functions named "foo",
+        this function returns False.
+    """
     seen_names = set()
     for declaration in declaration_list:
         if declaration.name in seen_names:
@@ -114,19 +211,41 @@ def check_name_uniqueness(
 
 
 def translate_program(program: ast.Expression) -> TypedExpression:
+    """
+    Translate a complete Tiger program through semantic analysis.
+
+    This is the main entry point for semantic analysis. It performs:
+    1. Escape analysis to determine variable allocation requirements
+    2. Type checking and IR translation using base environments
+    3. Entry/exit sequence generation for the program
+
+    Args:
+        program (ast.Expression): The parsed AST of the Tiger program
+
+    Returns:
+        TypedExpression: The translated program with type information
+
+    Raises:
+        SemanticError: If escape analysis or type checking fails
+    """
     try:
-        find_escape(program)
+        find_escape(program)  # First pass: determine variable escape information
     except EscapeError as err:
         raise SemanticError(err.message, err.position)
 
+    # Set up program-level activation record
     program_level = base_program_level()
+
+    # Translate with base environments (built-in types and functions)
     translated_program = translate_expression(
         BaseEnvironmentManager.base_value_environment(),
         BaseEnvironmentManager.base_type_environment(),
         program_level,
         program,
-        None,
+        None,  # No expected return type for top-level program
     )
+
+    # Add entry/exit sequences for program initialization
     IRT.proc_entry_exit(program_level, translated_program.expression)
     return translated_program
 
@@ -137,6 +256,26 @@ def translate_variable(
         level: RealLevel,
         variable: ast.Variable,
 ) -> TypedExpression:
+    """
+    Translate a variable reference to intermediate representation.
+
+    Handles three types of variable access:
+    - Simple variables: direct symbol lookup
+    - Record fields: check record type and field existence
+    - Array elements: check array type and index expression
+
+    Args:
+        value_env: Value environment containing variable bindings
+        type_env: Type environment for type information
+        level: Current activation record level
+        variable: AST variable node to translate
+
+    Returns:
+        TypedExpression: Translated variable access with type information
+
+    Raises:
+        SemanticError: If variable is undefined or access is invalid
+    """
     if isinstance(variable, ast.SimpleVar):
         # Simple variable: Look it up in the value environment.
         var_value = value_env.find(variable.sym)

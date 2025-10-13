@@ -1,20 +1,43 @@
+"""
+Activation Records and Stack Frame Management for Tiger Compiler
+
+This module implements activation records (stack frames) for the Tiger compiler,
+managing function call conventions, local variable storage, and register usage
+in the x86-64 architecture.
+
+Key Components:
+- **Stack Frame Layout**: Memory organization for function locals and temporaries
+- **Register Management**: Mapping between abstract temps and physical registers
+- **Access Methods**: In-frame (memory) vs in-register storage for variables
+- **Calling Conventions**: Parameter passing and return value handling
+
+x86-64 Architecture Features:
+- 64-bit pointers and word size
+- System V ABI calling convention
+- Separate register classes (argument, callee-saved, caller-saved, special)
+
+Author: Tiger Compiler Project
+"""
+
 from typing import List, Dict
-
 from dataclasses import dataclass
-
 from abc import ABC
+
 import intermediate_representation.tree as IRT
 import instruction_selection.assembly as Assembly
-
 from activation_records.temp import Temp, TempLabel, TempManager
 
-# Constant for the machine's word size.
+# =====================================================================
+# ARCHITECTURE CONSTANTS
+# =====================================================================
+
+# Machine word size in bytes (64-bit architecture)
 word_size = 8
 
-# The register lists should not overlap according to Appel, but some are
-# ambiguous (like rbp, which is "special" but also callee-saved).
-# The assignment to each list has been done in accordance to:
-# https://web.stanford.edu/class/archive/cs/cs107/cs107.1216/resources/x86-64-reference.pdf
+# =====================================================================
+# REGISTER CLASSIFICATION (System V ABI)
+# =====================================================================
+# Based on: https://web.stanford.edu/class/archive/cs/cs107/cs107.1216/resources/x86-64-reference.pdf
 
 # A list of registers used to implement "special" registers.
 special_registers = ["rip", "rsp", "rax"]
@@ -38,15 +61,37 @@ all_registers = (
 )
 
 
-# Bidirectional mapping between registers and temporaries.
+# =====================================================================
+# REGISTER-TO-TEMPORARY MAPPING
+# =====================================================================
+
 class TempMap:
-    # Dictionary mapping registers to temporaries.
-    register_to_temp = {}
-    # Dictionary mapping temporaries to registers.
-    temp_to_register = {}
+    """
+    Bidirectional mapping between physical registers and abstract temporaries.
+
+    This class maintains the mapping between concrete x86-64 registers and
+    abstract temporary variables used during compilation. The mapping is
+    essential for translating between IR temporaries and physical registers.
+
+    Class Attributes:
+        register_to_temp (Dict[str, Temp]): Maps register names to temp objects
+        temp_to_register (Dict[Temp, str]): Maps temp objects to register names
+    """
+
+    # Dictionary mapping register names to temporary objects
+    register_to_temp: Dict[str, Temp] = {}
+
+    # Dictionary mapping temporary objects to register names
+    temp_to_register: Dict[Temp, str] = {}
 
     @classmethod
     def initialize(cls):
+        """
+        Initialize the register-to-temporary mapping for all x86-64 registers.
+
+        Creates a temporary for each physical register and establishes
+        the bidirectional mapping needed for register allocation.
+        """
         for register in all_registers:
             temp = TempManager.new_temp()
             cls.register_to_temp[register] = temp
@@ -54,43 +99,111 @@ class TempMap:
 
     @classmethod
     def update_temp_to_register(cls, register_allocation: Dict[Temp, Temp]):
+        """
+        Update temporary-to-register mapping after register allocation.
+
+        After register allocation assigns physical registers to temporaries,
+        this method updates the global mapping to reflect the allocation results.
+
+        Args:
+            register_allocation (Dict[Temp, Temp]): Maps allocated temps to their assigned registers
+        """
         for temporary in register_allocation:
+            # Chain through the allocation to find the final register
             cls.temp_to_register[temporary] = cls.temp_to_register[
                 register_allocation[temporary]
             ]
 
 
-# Temporal corresponding to the frame pointer register rbp.
+# =====================================================================
+# SPECIAL REGISTER ACCESSORS
+# =====================================================================
+
 def frame_pointer() -> Temp:
+    """
+    Get the temporary representing the frame pointer register (rbp).
+
+    The frame pointer is used to access local variables and function
+    parameters stored on the stack.
+
+    Returns:
+        Temp: Temporary representing the %rbp register
+    """
     return TempMap.register_to_temp["rbp"]
 
 
-# Temporal corresponding to the return value register rax.
 def return_value() -> Temp:
+    """
+    Get the temporary representing the return value register (rax).
+
+    Functions return their values in the %rax register according to
+    the System V ABI calling convention.
+
+    Returns:
+        Temp: Temporary representing the %rax register
+    """
     return TempMap.register_to_temp["rax"]
 
 
-# This is called after register allocation. All temps have an assigned
-# register in the TempMap (if not, this should fail loudly).
 def temp_to_str(temp: Temp) -> str:
+    """
+    Convert a temporary to its string representation (register name).
+
+    This function is used after register allocation to get the physical
+    register name assigned to a temporary variable.
+
+    Args:
+        temp (Temp): The temporary to convert
+
+    Returns:
+        str: Register name (e.g., "rax", "rbx", "rbp")
+
+    Raises:
+        KeyError: If the temporary has not been assigned a register
+    """
     return TempMap.temp_to_register[temp]
 
 
-# Access describes formals and locals stored in a frame or in registers
-# as seen from the calee's perspective.
+# =====================================================================
+# VARIABLE ACCESS METHODS
+# =====================================================================
+
 class Access(ABC):
+    """
+    Abstract base class for variable access methods.
+
+    Variables can be stored either in registers (InRegister) or in stack
+    frames (InFrame). This class hierarchy represents the different
+    ways variables can be accessed in the compiled code.
+    """
     pass
 
 
-# InFrame(X) indicates a memory location at offset X from the frame pointer.
 @dataclass
 class InFrame(Access):
+    """
+    Variable stored in stack frame memory.
+
+    Represents a local variable or parameter stored at a specific
+    offset from the frame pointer (%rbp).
+
+    Attributes:
+        offset (int): Byte offset from frame pointer where variable is stored
+    """
     offset: int
 
 
-# InReg(t84) indicates storage in the "register" t84.
 @dataclass
 class InRegister(Access):
+    """
+    Variable stored in a register.
+
+    Represents a variable that has been allocated to a physical
+    register for efficient access.
+
+    Attributes:
+        register (Temp): Temporary representing the physical register
+    """
     register: Temp
 
 
