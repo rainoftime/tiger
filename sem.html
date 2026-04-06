@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Semantic Analysis Quiz</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+ :root{
+   --ok:#4caf50; --bad:#f44336; --border:#bbb;
+   --bg:#fafafa; --fg:#222; --accent:#1565c0;
+ }
+ body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:var(--bg);color:var(--fg);}
+ header{padding:1rem;background:var(--accent);color:#fff;text-align:center;}
+ main{padding:1rem;max-width:820px;margin:auto;}
+ h2{margin-top:2rem;color:var(--accent);}
+ .q{padding:1rem;border:1px solid var(--border);border-radius:6px;margin-bottom:.8rem;background:#fff; transition: background 0.3s;}
+ .q.correct{border-color:var(--ok);background:#f1f8f4;}
+ .q.wrong  {border-color:var(--bad);background:#fef5f5;}
+ label.option-label{display:block;padding:.4rem 0;cursor:pointer; transition: color 0.2s;}
+ button{padding:.6rem 1rem;margin:1.5rem 0;font-size:1rem;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer; transition: background 0.3s;}
+ .check-btn { padding: 0.4rem 0.8rem; margin: 0.5rem 0 0 0; font-size: 0.9rem; }
+ button:hover:not(:disabled){background:#0d47a1;}
+ button:disabled{opacity:.6;cursor:not-allowed;}
+ #result{font-weight:bold;font-size:1.1rem;margin-top:1rem;padding:1rem;border-radius:4px; display:none;}
+ #result.show{display:block; background:#e3f2fd;border:1px solid var(--accent);}
+ footer{padding:1rem;text-align:center;font-size:.85rem;color:#555;}
+ 
+ /* 新增：代码块与解析的样式 */
+ code { background: #eee; padding: 2px 5px; border-radius: 4px; color: #d63384; font-family: monospace; }
+ .explanation {
+   display: none;
+   margin-top: 0.2rem;
+   margin-bottom: 0.8rem;
+   padding: 0.6rem;
+   background-color: #f9f9f9;
+   border-left: 3px solid var(--accent);
+   font-size: 0.9rem;
+   color: #444;
+   white-space: pre-wrap; /* 保留文本中的换行符 */
+ }
+ .explanation.show {
+   display: block;
+   animation: fadeIn 0.4s ease;
+ }
+ @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+ @media(max-width:500px){body{font-size:15px;}}
+</style>
+
+<!-- 引入 MathJax 以支持类似于 $\sigma_1$ 的 LaTeX 公式渲染 -->
+<script>
+  MathJax = {
+    tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<header><h1>Semantic Analysis – Self-Check Quiz</h1></header>
+<main>
+  <section id="mcq"><h2>Multiple Choice</h2></section>
+  <div id="result"></div>
+</main>
+<footer>
+  <p>Based on "Semantic Analysis" chapter. © 2026</p>
+  <p style="margin-top: 1rem; font-size: 0.85rem;">
+    📖 源码与贡献题目请访问：<a href="https://github.com/rainoftime/tiger/tree/main/exercises" target="_blank" style="color: var(--accent); text-decoration: none;">GitHub Exercises</a>
+  </p>
+</footer>
+
+<script>
+const mcqWrap = document.getElementById('mcq');
+const resultBox = document.getElementById('result');
+
+// 格式化文本：将反引号包裹的文本转换为 HTML 的 <code> 标签
+function formatText(text) {
+  if(!text) return "";
+  return text.replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+// build multiple choice element
+function buildMCQ(q, i){
+  const div=document.createElement('div');
+  div.className='q';
+  div.dataset.correct=q.answer; // store index
+  let optionsHTML='';
+  
+  q.options.forEach((opt, idx) => {
+    // 只有当有解析时才渲染解析 div
+    const expHTML = opt.explanation ? `<div class="explanation">${formatText(opt.explanation)}</div>` : '';
+    optionsHTML += `
+      <label class="option-label" id="lbl-${i}-${idx}">
+        <input type="radio" name="mc${i}" value="${idx}">
+        <span class="opt-text">${formatText(opt.text)}</span>
+      </label>
+      ${expHTML}
+    `;
+  });
+  
+  div.innerHTML=`<strong>Q${i+1}.</strong> ${formatText(q.question)}<br><div style="margin-top:0.8rem;">${optionsHTML}</div>
+                 <button class="check-btn" id="btn-${i}">Check Answer / 查看解析</button>`;
+  return div;
+}
+
+// 每道题单独的判定逻辑
+function gradeQuestion(div, qIndex, btn) {
+  const correctIdx = parseInt(div.dataset.correct);
+  const sel = div.querySelector('input[type=radio]:checked');
+  
+  // 如果没有选择，设定 selectedIdx 为 -1，不再拦截弹窗
+  const selectedIdx = sel ? parseInt(sel.value) : -1;
+  
+  // 判断对错（未作答视为错误）
+  if(selectedIdx === correctIdx){
+    div.classList.add('correct');
+  }else{
+    div.classList.add('wrong');
+  }
+  
+  // 显示解析
+  div.querySelectorAll('.explanation').forEach(exp => exp.classList.add('show'));
+  
+  // 高亮选项颜色（正确答案标绿加粗，选错的标红）
+  div.querySelectorAll('.option-label').forEach((lbl, idx) => {
+    const radio = lbl.querySelector('input');
+    radio.disabled = true; // 提交后禁用选项
+    
+    // 增加 padding 以适应背景色高亮
+    lbl.style.padding = '0.4rem 0.5rem';
+    lbl.style.borderRadius = '4px';
+    
+    if (idx === correctIdx) {
+      lbl.style.color = '#2e7d32';
+      lbl.style.fontWeight = 'bold';
+      lbl.style.backgroundColor = '#e8f5e9'; // 浅绿色背景
+      lbl.querySelector('.opt-text').innerHTML += ' ✅';
+    } else if (idx === selectedIdx && selectedIdx !== correctIdx) {
+      lbl.style.color = '#c62828';
+      lbl.style.fontWeight = 'bold';
+      lbl.style.backgroundColor = '#ffebee'; // 浅红色背景
+      lbl.querySelector('.opt-text').innerHTML += ' ❌';
+    }
+  });
+  
+  btn.disabled = true;
+  btn.textContent = 'Answered (已显示解析)';
+  
+  checkAllFinished();
+}
+
+// 检查是否所有题目均已作答，完成后显示总分
+function checkAllFinished() {
+  const total = quizData.multipleChoice.length;
+  const answered = document.querySelectorAll('.q.correct, .q.wrong').length;
+  if (answered === total) {
+    const correct = document.querySelectorAll('.q.correct').length;
+    resultBox.innerHTML = `All Answered! Final Score (您的总成绩): ${correct} / ${total} (${Math.round(correct/total*100)}%)`;
+    resultBox.classList.add('show');
+  }
+}
+
+// 将您的 sem.txt 数据结构化
+const quizData = {
+  multipleChoice: [
+    {
+      question: "What is the primary function of the semantic analysis phase in a compiler as described in the source material?",
+      options: [
+        { text: "A. To optimize the code by removing redundant instructions.", explanation: "" },
+        { text: "B. To parse the source code into an abstract syntax tree (AST).", explanation: "" },
+        { text: "C. To connect variable definitions to their uses, check types, and simplify the AST.", explanation: "correct: C 概念题，简单" },
+        { text: "D. To generate the final machine code from an intermediate representation.", explanation: "" }
+      ],
+      answer: 2
+    },
+    {
+      question: "When managing symbol tables using an imperative style with destructive updates, what is necessary to handle nested scopes correctly?",
+      options: [
+        { text: "A. Using a persistent data structure like a balanced binary search tree.", explanation: "" },
+        { text: "B. Copying the entire symbol table every time a new scope is entered.", explanation: "" },
+        { text: "C. Re-analyzing all previous declarations to rebuild the table state.", explanation: "" },
+        { text: "D. Maintaining an 'undo stack' to revert changes when a scope is exited.", explanation: "correct : D 考察 imperative style" }
+      ],
+      answer: 3
+    },
+    {
+      question: "In the context of the Tiger compiler's symbol tables, what is the result of the operation $\\sigma_1 + \\{a \\!→ string\\}$ if the environment $\\sigma_1$ already contains the binding $\\sigma_1 = \\{a \\!→ int, b \\!→ int\\}$?",
+      options: [
+        { text: "A. The operation fails because the identifier 'a' is already bound.", explanation: "This operation is designed to handle shadowing, so it does not fail but instead creates a new binding that temporarily hides the old one." },
+        { text: "B. A new environment {a → int, b → int} because the original binding takes precedence.", explanation: "The document explicitly states that the right-hand side of the `+` operator overrides the left, not the other way around." },
+        { text: "C. A new environment {a → string, b → int} where the new binding for 'a' overrides the old one.", explanation: "正确答案\nThe text specifies that for the `+` operator, bindings in the right-hand table take precedence, effectively shadowing the binding from the left-hand table." },
+        { text: "D. A new environment {a → int, a → string, b → int} containing both bindings for 'a'.", explanation: "While both bindings might exist in the underlying data structure (like a hash bucket), the logical environment only exposes the most recent binding." }
+      ],
+      answer: 2
+    },
+    {
+      question: "Which data structure is recommended in the text for an *efficient functional-style* implementation of symbol tables?",
+      options: [
+        { text: "A. A hash table with external chaining.", explanation: "Hash tables are recommended for the imperative style due to their efficient destructive updates, but not for the functional style." },
+        { text: "B. A balanced binary search tree.", explanation: "正确答案\nThe text describes how balanced binary search trees, as a persistent data structure, can efficiently create a new version of the table in O(log n) time without destroying the old one." },
+        { text: "C. A linked list.", explanation: "While a linked list allows for non-destructive additions at the head, its O(n) lookup time is not considered efficient for a symbol table." },
+        { text: "D. A dynamically sized array.", explanation: "Arrays require copying the entire structure for non-destructive updates, making them inefficient for this purpose." }
+      ],
+      answer: 1
+    },
+    {
+      question: "How does the Tiger compiler handle type checking for the following code snippet, assuming `a` and `b` are defined with structurally identical record types?\n`let type a = {x: int} type b = {x: int} var i : a := ... var j : b := ... in i := j end`",
+      options: [
+        { text: "A. It is legal because types `a` and `b` are structurally equivalent.", explanation: "The text clarifies that Tiger does not use structural equivalence. Languages that do would find this legal, but Tiger does not." },
+        { text: "B. It is legal only if `j` is explicitly cast to type `a`.", explanation: "Tiger's type system is stricter; it doesn't allow assignment between different named types even with casting in this manner." },
+        { text: "C. It is illegal because in Tiger, each record type expression creates a new, distinct type.", explanation: "正确答案\nThe text explicitly states this program is illegal in Tiger because each type expression (like `{x: int}`) defines a unique type, and `a` and `b` are considered different types." },
+        { text: "D. The legality depends on whether the fields are assigned in the same order.", explanation: "While field order is part of the structure, the core issue in Tiger is that the two type declarations create distinct, non-interchangeable types." }
+      ],
+      answer: 2
+    },
+    {
+      question: "Why does the Tiger compiler need separate value environments (`venv`) and type environments (`tenv`)?",
+      options: [
+        { text: "A. Because Tiger has separate name spaces for types and for variables/functions.", explanation: "正确答案\nThe text provides an example where the same identifier 'a' is used as both a type name and a variable name, demonstrating that the context determines which name space to look in." },
+        { text: "B. To handle function overloading, where functions can have the same name but different types.", explanation: "Tiger does not support function overloading; the separation is for different kinds of identifiers (types vs. values)." },
+        { text: "C. To improve the performance of identifier lookups by having smaller tables.", explanation: "While performance is a general goal, the fundamental reason is not about table size but about the language's design." },
+        { text: "D. It is an implementation choice for the imperative style; a functional style would use one table.", explanation: "The need for two environments is dictated by the language's grammar and semantics, not the implementation style of the symbol table." }
+      ],
+      answer: 0
+    },
+    {
+      question: "During the type-checking of a `let` expression, what is the correct order of operations?",
+      options: [
+        { text: "A. Enter new scope, process body, process declarations, exit scope.", explanation: "The declarations must be processed before the body so that the new symbols are available within the body." },
+        { text: "B. Enter new scope, process declarations, process body, exit scope.", explanation: "正确答案\nThe text shows that `S_beginScope` is called first, then `transDec` processes the declarations to augment the new scope, then `transExp` processes the body in that environment, and finally `S_endScope` restores the old environment." },
+        { text: "C. Process declarations, enter new scope, process body, exit scope.", explanation: "The new scope must be entered *before* processing declarations so that the new bindings are placed in the new scope, not the outer one." },
+        { text: "D. Process body, process declarations, enter new scope, exit scope.", explanation: "The body must be processed using the new bindings from the declarations, so the declarations must be processed first." }
+      ],
+      answer: 1
+    },
+    {
+      question: "What kind of cycle in type declarations is considered illegal in Tiger and should be detected by the type-checker?",
+      options: [
+        { text: "A. Any set of mutually recursive type declarations, regardless of their structure.", explanation: "Mutually recursive types are legal and useful, provided they are well-founded (i.e., the recursion is broken by a record or array constructor)." },
+        { text: "B. A cycle that involves a record or array type, like `type list = {hd:int, tl:list}`.", explanation: "This is a legal recursive type. The record type 'breaks' the cycle by providing a concrete structure." },
+        { text: "C. A cycle where a type name appears on both the left and right side of a single declaration.", explanation: "This describes a directly recursive type, which is legal if it's a record or array, such as `type list = {..., rest: list}`." },
+        { text: "D. A cycle that consists only of type aliases, like `type a = b; type b = a`.", explanation: "正确答案\nThe text gives a similar example (`type a = b type b = d ... type d = a`) and states that such a cycle, not passing through a record or array, is illegal." }
+      ],
+      answer: 3
+    },
+    {
+      question: "If the Tiger compiler used the functional-style symbol table interface, why would the `S_beginScope` and `S_endScope` functions be unnecessary?",
+      options: [
+        { text: "A. Because you can simply keep a pointer to the old version of the table when creating a new one.", explanation: "正确答案\nThe text explains this directly: since `S_enter` would return a new table without modifying the old one, you can just hold on to the old table and return to it after the scope ends, no 'undo' mechanism needed." },
+        { text: "B. Because functional tables do not support nested scopes.", explanation: "They can support nested scopes perfectly well; the mechanism for doing so is just different." },
+        { text: "C. Because `S_enter` would automatically manage scope markers.", explanation: "The functional approach eliminates the need for explicit scope management functions by its non-destructive nature." },
+        { text: "D. Because functional tables are implemented with a single, global stack.", explanation: "The imperative style is the one that uses a global table and an undo stack; the functional style avoids this by creating new table values." }
+      ],
+      answer: 0
+    },
+    {
+      question: "When type-checking an expression like `arr[i]`, a subscripted variable, what must the type-checker first verify about `arr`?",
+      options: [
+        { text: "A. That `arr` was declared in the current scope.", explanation: "The variable only needs to be visible in the current environment; it could have been declared in an outer scope." },
+        { text: "B. That `arr` has a type of `array`.", explanation: "正确答案\nBefore checking the index or determining the result type, the checker must confirm that the variable being subscripted is, in fact, an array." },
+        { text: "C. That `arr` is a record type.", explanation: "Subscripting with `[]` is an operation for arrays, not records. Field access with `.` is for records." },
+        { text: "D. That the type of `i` is a `string`.", explanation: "Array indices are typically integers, so the checker would verify that `i` is of type `int`." }
+      ],
+      answer: 1
+    },
+    {
+      question: "What happens to the formal parameter bindings of a function after its body has been type-checked?",
+      options: [
+        { text: "A. They remain in the environment for subsequent function declarations to use.", explanation: "Each function has its own distinct set of parameters; they are not shared." },
+        { text: "B. They are discarded from the environment as the scope of the function body is exited.", explanation: "正确答案\nThe `S_endScope` call after processing the body removes the local bindings for the formal parameters, restoring the environment to its state before the function body was entered." },
+        { text: "C. They are converted into a `Ty_tyList` and stored in the function's `FunEntry`.", explanation: "The types of the parameters are stored in the `FunEntry`, but this happens *before* the body is checked. The bindings for the parameter *names* are discarded *after*." },
+        { text: "D. They are merged into the outer scope's environment.", explanation: "Parameters are local to the function and should not 'leak' into the outer scope." }
+      ],
+      answer: 1
+    }
+  ]
+};
+
+// Build UI with embedded data
+quizData.multipleChoice.forEach((q, i) => {
+  const qDiv = buildMCQ(q, i);
+  mcqWrap.appendChild(qDiv);
+  
+  // 给每道题绑上独立的按钮事件
+  const btn = qDiv.querySelector(`#btn-${i}`);
+  btn.addEventListener('click', () => gradeQuestion(qDiv, i, btn));
+});
+</script>
+</body>
+</html>
