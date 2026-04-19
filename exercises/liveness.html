@@ -303,10 +303,10 @@ const quizData = {
     {
       question: "Given the dataflow equations for liveness, which equation correctly defines the live-out set out[n] for a node n?",
       options: [
-        { text: "A. $out[n] = \bigcup_{s \in succ[n]} in[s]$Standard", explanation: "正确答案\nA variable is live at the end of a node if it is needed at the beginning of any of its successor nodes." },
-        { text: "B. $out[n] = \bigcup_{p \in pred[n]} in[p]$", explanation: "Using predecessors would imply forward-flowing information, which contradicts how liveness is calculated." },
-        { text: "C. $out[n]=in[n] \bigcup def[n]$", explanation: "The definition of a variable at node n usually terminates its liveness from the perspective of the node's entry, rather than defining its exit liveness." },
-        { text: "D. $out[n]=use[n] \bigcup (in[n]−def[n])$", explanation: "This incorrectly reverses the flow of information and swaps the roles of the in and out sets." }
+        { text: "A. $out[n] = \\bigcup_{s \\in succ[n]} in[s]$", explanation: "正确答案\nA variable is live at the end of a node if it is needed at the beginning of any of its successor nodes." },
+        { text: "B. $out[n] = \\bigcup_{p \\in pred[n]} in[p]$", explanation: "Using predecessors would imply forward-flowing information, which contradicts how liveness is calculated." },
+        { text: "C. $out[n] = in[n] \\cup def[n]$", explanation: "The definition of a variable at node n usually terminates its liveness from the perspective of the node's entry, rather than defining its exit liveness." },
+        { text: "D. $out[n]=use[n] \\cup (in[n] − def[n])$", explanation: "This incorrectly reverses the flow of information and swaps the roles of the in and out sets." }
       ],
       answer: 0
     },
