@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Compiler Design Quiz</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+ :root{
+   --ok:#4caf50; --bad:#f44336; --border:#bbb;
+   --bg:#fafafa; --fg:#222; --accent:#1565c0;
+ }
+ body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:var(--bg);color:var(--fg);}
+ header{padding:1rem;background:var(--accent);color:#fff;text-align:center;}
+ main{padding:1rem;max-width:820px;margin:auto;}
+ h2{margin-top:2rem;color:var(--accent); border-bottom: 2px solid #eee; padding-bottom: 0.5rem;}
+ .q{padding:1rem;border:1px solid var(--border);border-radius:6px;margin-bottom:.8rem;background:#fff; transition: background 0.3s;}
+ .q.correct{border-color:var(--ok);background:#f1f8f4;}
+ .q.wrong  {border-color:var(--bad);background:#fef5f5;}
+ label.option-label{display:block;padding:.4rem 0;cursor:pointer; transition: color 0.2s;}
+ button{padding:.6rem 1rem;margin:1.5rem 0;font-size:1rem;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer; transition: background 0.3s;}
+ .check-btn { padding: 0.4rem 0.8rem; margin: 0.5rem 0 0 0; font-size: 0.9rem; }
+ button:hover:not(:disabled){background:#0d47a1;}
+ button:disabled{opacity:.6;cursor:not-allowed;}
+ #result{font-weight:bold;font-size:1.1rem;margin-top:1rem;padding:1rem;border-radius:4px; display:none;}
+ #result.show{display:block; background:#e3f2fd;border:1px solid var(--accent);}
+ footer{padding:1rem;text-align:center;font-size:.85rem;color:#555;}
+ 
+ /* 代码块与解析的样式 */
+ code { background: #eee; padding: 2px 5px; border-radius: 4px; color: #d63384; font-family: monospace; }
+ .explanation {
+   display: none;
+   margin-top: 0.2rem;
+   margin-bottom: 0.8rem;
+   padding: 0.6rem;
+   background-color: #f9f9f9;
+   border-left: 3px solid var(--accent);
+   font-size: 0.9rem;
+   color: #444;
+   white-space: pre-wrap; /* 保留文本中的换行符 */
+ }
+ .explanation.show {
+   display: block;
+   animation: fadeIn 0.4s ease;
+ }
+ @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+ @media(max-width:500px){body{font-size:15px;}}
+</style>
+
+<!-- 引入 MathJax 以支持类似于 $\sigma_1$ 的 LaTeX 公式渲染 -->
+<script>
+  MathJax = {
+    tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+</head>
+<body>
+<header><h1>Compiler Design – Self-Check Quiz</h1></header>
+<main>
+  <section id="tf"><h2>True / False</h2></section>
+  <section id="mcq"><h2>Multiple Choice</h2></section>
+  <div id="result"></div>
+</main>
+<footer>
+  <p>Based on Compiler Design chapters. © 2026</p>
+  <p style="margin-top: 1rem; font-size: 0.85rem;">
+    📖 源码与贡献题目请访问：<a href="https://github.com/rainoftime/tiger/tree/main/exercises" target="_blank" style="color: var(--accent); text-decoration: none;">GitHub Exercises</a>
+  </p>
+</footer>
+
+<script>
+const tfWrap = document.getElementById('tf');
+const mcqWrap = document.getElementById('mcq');
+const resultBox = document.getElementById('result');
+
+// 格式化文本：将反引号包裹的文本转换为 HTML 的 <code> 标签
+function formatText(text) {
+  if(!text) return "";
+  return text.replace(/`([^`]+)`/g, '<code>$1</code>');
+}
+
+// build multiple choice / TF element
+function buildMCQ(q, globalIdx, labelPrefix = "Q"){
+  const div = document.createElement('div');
+  div.className = 'q';
+  div.dataset.correct = q.answer; // store index
+  let optionsHTML = '';
+  
+  q.options.forEach((opt, idx) => {
+    // 只有当有解析时才渲染解析 div
+    const expHTML = opt.explanation ? `<div class="explanation">${formatText(opt.explanation)}</div>` : '';
+    optionsHTML += `
+      <label class="option-label" id="lbl-${globalIdx}-${idx}">
+        <input type="radio" name="q${globalIdx}" value="${idx}">
+        <span class="opt-text">${formatText(opt.text)}</span>
+      </label>
+      ${expHTML}
+    `;
+  });
+  
+  div.innerHTML=`<strong>${labelPrefix}.</strong> ${formatText(q.question)}<br><div style="margin-top:0.8rem;">${optionsHTML}</div>
+                 <button class="check-btn" id="btn-${globalIdx}">Check Answer / 查看解析</button>`;
+  return div;
+}
+
+// 每道题单独的判定逻辑
+function gradeQuestion(div, qIndex, btn) {
+  const correctIdx = parseInt(div.dataset.correct);
+  const sel = div.querySelector('input[type=radio]:checked');
+  
+  // 如果没有选择，设定 selectedIdx 为 -1
+  const selectedIdx = sel ? parseInt(sel.value) : -1;
+  
+  // 判断对错（未作答视为错误）
+  if(selectedIdx === correctIdx){
+    div.classList.add('correct');
+  }else{
+    div.classList.add('wrong');
+  }
+  
+  // 显示解析
+  div.querySelectorAll('.explanation').forEach(exp => exp.classList.add('show'));
+  
+  // 高亮选项颜色（正确答案标绿加粗，选错的标红）
+  div.querySelectorAll('.option-label').forEach((lbl, idx) => {
+    const radio = lbl.querySelector('input');
+    radio.disabled = true; // 提交后禁用选项
+    
+    // 增加 padding 以适应背景色高亮
+    lbl.style.padding = '0.4rem 0.5rem';
+    lbl.style.borderRadius = '4px';
+    
+    if (idx === correctIdx) {
+      lbl.style.color = '#2e7d32';
+      lbl.style.fontWeight = 'bold';
+      lbl.style.backgroundColor = '#e8f5e9'; // 浅绿色背景
+      lbl.querySelector('.opt-text').innerHTML += ' ✅';
+    } else if (idx === selectedIdx && selectedIdx !== correctIdx) {
+      lbl.style.color = '#c62828';
+      lbl.style.fontWeight = 'bold';
+      lbl.style.backgroundColor = '#ffebee'; // 浅红色背景
+      lbl.querySelector('.opt-text').innerHTML += ' ❌';
+    }
+  });
+  
+  btn.disabled = true;
+  btn.textContent = 'Answered (已显示解析)';
+  
+  checkAllFinished();
+}
+
+// 检查是否所有题目均已作答，完成后显示总分
+function checkAllFinished() {
+  const total = quizData.trueFalse.length + quizData.multipleChoice.length;
+  const answered = document.querySelectorAll('.q.correct, .q.wrong').length;
+  if (answered === total) {
+    const correct = document.querySelectorAll('.q.correct').length;
+    resultBox.innerHTML = `All Answered! Final Score (您的总成绩): ${correct} / ${total} (${Math.round(correct/total*100)}%)`;
+    resultBox.classList.add('show');
+  }
+}
+
+// 数据结构化 (新增了 True/False 和 指令选择 的多选题)
+const quizData = {
+  trueFalse: [
+    {
+      question: "Static liveness analysis can accurately determine that a variable is dead if it is only used in a branch that is mathematically impossible to take.",
+      options:[
+        {text: "True", explanation:"Standard static analysis assumes all control-flow edges can be followed, as determining unreachable paths is generally undecidable."},
+        {text: "False", explanation:"正确答案\nStatic analysis is a 'conservative' approximation and assumes every branch of a conditional might be taken."}
+      ],
+      answer: 1
+    },
+    {
+      question: "A variable is considered 'live-in' at node $n$ if it is used within node $n$, even if it is also defined within that same node.",
+      options:[
+        {text: "True", explanation:"正确答案\nIf a variable is in $use[n]$, it is automatically part of $in[n]$ regardless of whether it is subsequently redefined in the same node."},
+        {text: "False", explanation:"Liveness at the entry ($in[n]$) depends on whether the *current* value is needed; if it's used before being redefined, it was needed from the start of the node."}
+      ],
+        answer: 0
+    },
+    {
+      question: "Two variables interfere if their live ranges overlap at any point in the program.",
+      options: [
+        { text: "True", explanation: "正确答案\nIf both variables must hold their values at the same time, they cannot occupy the same register." },
+        { text: "False", explanation: "Overlapping live ranges is the definition of interference used to prevent register conflicts." }
+      ],
+      answer: 0
+    },
+    {
+      question: "The one-variable-at-a-time method for liveness analysis can be faster than parallel set equations for variables with very short live ranges.",
+      options: [
+        { text: "True", explanation: "正确答案\nShort live ranges mean the depth-first search terminates quickly without traversing the whole graph for that variable." },
+        { text: "False", explanation: "Individual searches avoid the overhead of full-set unions if the variable's influence is localized." }
+      ],
+      answer: 0
+    },
+    {
+      question: "All solutions to the liveness dataflow equations are guaranteed to be identical.",
+      options: [
+        { text: "True", explanation: "The text proves that multiple solutions can exist, though they all contain the 'least' solution X." },
+        { text: "False", explanation: "正确答案\nThere can be multiple solutions (like X and Y in the text), which is why finding the 'least' solution is important for efficiency." }
+      ],
+      answer: 1
+    },
+    {
+      question: "If variable a is dynamically live at node n, it must also be statically live at node n.",
+      options: [
+        { text: "True", explanation: "正确答案\nStatic liveness is a superset of dynamic liveness; if a real execution path exists, a path of edges must also exist." },
+        { text: "False", explanation: "The static approximation covers all possible dynamic executions by including every theoretical path in the graph." }
+      ],
+      answer: 0
+    },
+    {
+      question: "Using 'Basic Blocks' instead of individual instructions as nodes in a flow graph makes liveness analysis slower due to increased complexity.",
+      options: [
+        { text: "True", explanation: "It actually makes the analysis faster by significantly reducing the number of nodes in the graph." },
+        { text: "False", explanation: "正确答案\nReducing the number of nodes simplifies the graph structure and speeds up the iterative solver." }
+      ],
+      answer: 1
+    },
+    {
+      question:" In an interference graph, an edge between two variables a and b means they MUST be assigned to different registers.",
+      options: [
+        { text: "True", explanation: "正确答案\nAn interference edge signifies that the two temporaries cannot safely share a register because their values are needed simultaneously." },
+        { text: "False", explanation: "This is the core purpose of the interference graph: to encode register allocation constraints." }
+      ],
+      answer: 0
+    },
+    {
+      question: "If a node n has only one successor s, then $out[n]$ will be exactly equal to $in[s]$.",
+      options: [
+        { text: "True", explanation: "正确答案\nThe out set is the union of the in sets of all successors; with only one successor, the union is just that single set." },
+        { text: "False", explanation: "The mathematical definition of the union of a single set is the set itself." }
+      ],
+      answer: 0
+    },
+    {
+        question: "A variable that is defined but never used in the program does not interfere with any other live variables.",
+        options: [
+            { text: "True", explanation: "Even if never used, the instruction writing it must use a register, which cannot be currently occupied by another live variable." },
+            { text: "False", explanation: "正确答案\nZero-length live ranges still interfere with any live ranges that overlap them at the point of definition." }
+        ],
+        answer: 1
+    },
+    {
+        question: "The convergence of liveness analysis can be improved by following the 'flow' of information, which is forward along control-flow edges.",
+        options: [
+            { text: "True", explanation: "Liveness flows backward, so information propagates more quickly if nodes are processed in reverse order." },
+            { text: "False", explanation: "正确答案\nLiveness flows backward (from out to in, and from successors to predecessors), so reverse order is better." }
+        ],
+        answer: 1
+    },
+    {
+        question: "If a register r1 is unsuitable for a temporary a due to architectural constraints, this is represented as an interference between a and r1.",
+        options: [
+            { text: "True", explanation: "正确答案\nInterference graphs can encode both overlapping live ranges and architectural 'pre-coloring' or constraint requirements." },
+            { text: "False", explanation: "The concept of interference is generalized to any constraint that prevents a temporary from being assigned to a specific register." }
+        ],
+        answer: 0
+    },
+    {
+        question: "In a CFG, $pred[n]$ is the set of nodes m such that there is an edge $n→m$.",
+        options: [
+            { text: "True", explanation: "The definition given describes the successors ($succ[n]$), not the predecessors ($pred[n]$)." },
+            { text: "False", explanation: "正确答案\n$pred[n]$ contains nodes that lead *into* $n$, not those that $n$ leads into." }
+        ],
+        answer: 1
+    }
+  ],
+  
+  multipleChoice: [
+    {
+      question: "In the context of compiler design, when is a variable considered 'live' at a specific point in a program?",
+      options: [
+        { text: "A. If its value has been defined in the current basic block.", explanation: "Being defined recently does not guarantee the variable will be needed again, which is the core requirement for liveness." },
+        { text: "B. If the variable is being used as the destination of an assignment.", explanation: "An assignment defines a variable, which typically marks the end of a previous live range rather than asserting its current liveness." },
+        { text: "C. If it currently holds a value that may be needed in the future.", explanation: "正确答案\nLiveness is fundamentally concerned with the potential future use of a variable's current value." },
+        { text: "D. If it is currently stored in a physical register rather than memory.", explanation: "Storage location is a result of liveness analysis and register allocation, not the definition of liveness itself." }
+      ],
+      answer: 2
+    },
+    {
+      question: "Which of the following best describes a control-flow graph (CFG)?",
+      options: [
+        { text: "A. A graph where nodes represent variables and edges represent their interference.", explanation: "This describes an interference graph, which is used after liveness analysis, not the flow of control itself." },
+        { text: "B. A mapping of memory addresses to the temporaries currently occupying them.", explanation: "This describes memory or register mapping, whereas the CFG describes the execution sequence." },
+        { text: "C. A graph where each statement is a node and an edge exists if one statement can immediately follow another.", explanation: "正确答案\nThe CFG maps all possible paths of execution through the program's statements or instructions." },
+        { text: "D. A tree structure representing the hierarchical nesting of loops and conditionals.", explanation: "While it captures logic, a CFG is a general directed graph that can contain cycles, not just a hierarchical tree." }
+      ],
+      answer: 2
+    },
+    {
+      question: "What is the primary reason liveness analysis is performed on an intermediate representation with an unbounded number of temporaries?",
+      options: [
+        { text: "A. To ensure that every temporary is initialized before it is used.", explanation: "Liveness can detect uninitialized variables, but its primary purpose is enabling register reuse." },
+        { text: "B. To reduce the number of instructions in the final executable.", explanation: "While it helps optimize, the primary constraint being addressed is the physical limitation of the target machine's registers." },
+        { text: "C. To determine which temporaries can share the same physical register.", explanation: "正确答案\nBy identifying which temporaries are not 'in use' at the same time, the compiler can map multiple temporaries to a single bounded register." },
+        { text: "D. To identify code that will never be executed by the processor.", explanation: "Identifying unreachable code is a separate optimization, although it can influence liveness results." }
+      ],
+      answer: 2
+    },
+    {
+      question: "Given the dataflow equations for liveness, which equation correctly defines the live-out set out[n] for a node n?",
+      options: [
+        { text: "A. $out[n] = \bigcup_{s \in succ[n]} in[s]$Standard", explanation: "正确答案\nA variable is live at the end of a node if it is needed at the beginning of any of its successor nodes." },
+        { text: "B. $out[n] = \bigcup_{p \in pred[n]} in[p]$", explanation: "Using predecessors would imply forward-flowing information, which contradicts how liveness is calculated." },
+        { text: "C. $out[n]=in[n] \bigcup def[n]$", explanation: "The definition of a variable at node n usually terminates its liveness from the perspective of the node's entry, rather than defining its exit liveness." },
+        { text: "D. $out[n]=use[n] \bigcup (in[n]−def[n])$", explanation: "This incorrectly reverses the flow of information and swaps the roles of the in and out sets." }
+      ],
+      answer: 0
+    },
+    {
+      question: "The worst-case run time of the iterative liveness algorithm is given as $O(N^4)$. What do the factors of N represent in this complexity analysis?",
+      options: [
+        { text: "A. The time it takes to solve the Halting Problem for a graph of size $N$.", explanation: "The Halting Problem is undecidable and does not have a polynomial complexity like $O(N^4)$." },
+        { text: "B. Number of registers, nodes, edges, and variables.", explanation: "The complexity is usually expressed in terms of the program size $N$, which limits both the number of nodes and the number of variables." },
+        { text: "C. Program size $N$ for the number of nodes, number of variables, set operation time, and number of iterations.", explanation: "正确答案\nWith $N$ nodes and $N$ variables, each set operation is $O(N)$, and the loop can iterate up to $O(N^2)$ times as sets grow." },
+        { text: "D. The depth of the control-flow graph raised to the fourth power.", explanation: "Complexity is based on total nodes and variables, not just the depth of the graph." }
+      ],
+      answer: 2
+    },
+    {
+      question: "When building an interference graph, why is a special rule applied to MOVE instructions like a←c?",
+      options: [
+        { text: "A. Because MOVE instructions are always removed before liveness analysis begins.", explanation: "MOVE instructions are part of the flow graph and are necessary for determining the values temporaries hold." },
+        { text: "B. Because MOVE instructions do not define any variables.", explanation: "A MOVE instruction explicitly defines its destination variable a." },
+        { text: "C. To ensure that a and c are never placed in the same register.", explanation: "The goal of the special rule is actually the opposite: to allow them to be in the same register to potentially eliminate the MOVE." },
+        { text: "D. To prevent an interference edge between a and c if c is live-out.", explanation: "正确答案\nSince a and c will hold the same value, they can safely occupy the same register, so they shouldn't 'interfere'." }
+      ],
+      answer: 3
+    }
+  ]
+};
+
+// 动态构建界面
+let globalCounter = 0;
+
+// 1. 渲染判断题
+quizData.trueFalse.forEach((q, i) => {
+  const qDiv = buildMCQ(q, globalCounter, `T/F ${i+1}`);
+  tfWrap.appendChild(qDiv);
+  
+  const btn = qDiv.querySelector(`#btn-${globalCounter}`);
+  const currentCounter = globalCounter;
+  btn.addEventListener('click', () => gradeQuestion(qDiv, currentCounter, btn));
+  globalCounter++;
+});
+
+// 2. 渲染单选题
+quizData.multipleChoice.forEach((q, i) => {
+  const qDiv = buildMCQ(q, globalCounter, `Q${i+1}`);
+  mcqWrap.appendChild(qDiv);
+  
+  const btn = qDiv.querySelector(`#btn-${globalCounter}`);
+  const currentCounter = globalCounter;
+  btn.addEventListener('click', () => gradeQuestion(qDiv, currentCounter, btn));
+  globalCounter++;
+});
+</script>
+</body>
+</html>
