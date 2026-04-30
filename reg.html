@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Semantic Analysis Quiz</title>
+<title>Compiler Design Quiz</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
  :root{
@@ -12,7 +12,7 @@
  body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:var(--bg);color:var(--fg);}
  header{padding:1rem;background:var(--accent);color:#fff;text-align:center;}
  main{padding:1rem;max-width:820px;margin:auto;}
- h2{margin-top:2rem;color:var(--accent);}
+ h2{margin-top:2rem;color:var(--accent); border-bottom: 2px solid #eee; padding-bottom: 0.5rem;}
  .q{padding:1rem;border:1px solid var(--border);border-radius:6px;margin-bottom:.8rem;background:#fff; transition: background 0.3s;}
  .q.correct{border-color:var(--ok);background:#f1f8f4;}
  .q.wrong  {border-color:var(--bad);background:#fef5f5;}
@@ -25,7 +25,7 @@
  #result.show{display:block; background:#e3f2fd;border:1px solid var(--accent);}
  footer{padding:1rem;text-align:center;font-size:.85rem;color:#555;}
  
- /* 新增：代码块与解析的样式 */
+ /* 代码块与解析的样式 */
  code { background: #eee; padding: 2px 5px; border-radius: 4px; color: #d63384; font-family: monospace; }
  .explanation {
    display: none;
@@ -55,19 +55,21 @@
 <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
-<header><h1>Semantic Analysis – Self-Check Quiz</h1></header>
+<header><h1>Register Allocation – Self-Check Quiz</h1></header>
 <main>
+  <section id="tf"><h2>True / False</h2></section>
   <section id="mcq"><h2>Multiple Choice</h2></section>
   <div id="result"></div>
 </main>
 <footer>
-  <p>Based on "Semantic Analysis" chapter. © 2026</p>
+  <p>Based on "Register Allocation" chapters. © 2026</p>
   <p style="margin-top: 1rem; font-size: 0.85rem;">
     📖 源码与贡献题目请访问：<a href="https://github.com/rainoftime/tiger/tree/main/exercises" target="_blank" style="color: var(--accent); text-decoration: none;">GitHub Exercises</a>
   </p>
 </footer>
 
 <script>
+const tfWrap = document.getElementById('tf');
 const mcqWrap = document.getElementById('mcq');
 const resultBox = document.getElementById('result');
 
@@ -77,27 +79,27 @@ function formatText(text) {
   return text.replace(/`([^`]+)`/g, '<code>$1</code>');
 }
 
-// build multiple choice element
-function buildMCQ(q, i){
-  const div=document.createElement('div');
-  div.className='q';
-  div.dataset.correct=q.answer; // store index
-  let optionsHTML='';
+// build multiple choice / TF element
+function buildMCQ(q, globalIdx, labelPrefix = "Q"){
+  const div = document.createElement('div');
+  div.className = 'q';
+  div.dataset.correct = q.answer; // store index
+  let optionsHTML = '';
   
   q.options.forEach((opt, idx) => {
     // 只有当有解析时才渲染解析 div
-    const expHTML = opt.explanation ? `<div class="explanation">${formatText(opt.explanation)}</div>` : '';
+    const expHTML = opt.explanation ? `<div class=explanation>${formatText(opt.explanation)}</div>` : '';
     optionsHTML += `
-      <label class="option-label" id="lbl-${i}-${idx}">
-        <input type="radio" name="mc${i}" value="${idx}">
+      <label class="option-label" id="lbl-${globalIdx}-${idx}">
+        <input type="radio" name="q${globalIdx}" value="${idx}">
         <span class="opt-text">${formatText(opt.text)}</span>
       </label>
       ${expHTML}
     `;
   });
   
-  div.innerHTML=`<strong>Q${i+1}.</strong> ${formatText(q.question)}<br><div style="margin-top:0.8rem;">${optionsHTML}</div>
-                 <button class="check-btn" id="btn-${i}">Check Answer / 查看解析</button>`;
+  div.innerHTML=`<strong>${labelPrefix}.</strong> ${formatText(q.question)}<br><div style="margin-top:0.8rem;">${optionsHTML}</div>
+                 <button class="check-btn" id="btn-${globalIdx}">Check Answer / 查看解析</button>`;
   return div;
 }
 
@@ -106,7 +108,7 @@ function gradeQuestion(div, qIndex, btn) {
   const correctIdx = parseInt(div.dataset.correct);
   const sel = div.querySelector('input[type=radio]:checked');
   
-  // 如果没有选择，设定 selectedIdx 为 -1，不再拦截弹窗
+  // 如果没有选择，设定 selectedIdx 为 -1
   const selectedIdx = sel ? parseInt(sel.value) : -1;
   
   // 判断对错（未作答视为错误）
@@ -145,6 +147,17 @@ function gradeQuestion(div, qIndex, btn) {
   btn.textContent = 'Answered (已显示解析)';
   
   checkAllFinished();
+}
+
+// 检查是否所有题目均已作答，完成后显示总分
+function checkAllFinished() {
+  const total = quizData.trueFalse.length + quizData.multipleChoice.length;
+  const answered = document.querySelectorAll('.q.correct, .q.wrong').length;
+  if (answered === total) {
+    const correct = document.querySelectorAll('.q.correct').length;
+    resultBox.innerHTML = `All Answered! Final Score (您的总成绩): ${correct} / ${total} (${Math.round(correct/total*100)}%)`;
+    resultBox.classList.add('show');
+  }
 }
 
 // 检查是否所有题目均已作答，完成后显示总分
