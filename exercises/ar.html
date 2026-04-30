@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Activation Records Quiz</title>
+<title>Compiler Design Quiz</title>
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <style>
  :root{
@@ -12,317 +12,676 @@
  body{font-family:system-ui,Segoe UI,Roboto,sans-serif;margin:0;background:var(--bg);color:var(--fg);}
  header{padding:1rem;background:var(--accent);color:#fff;text-align:center;}
  main{padding:1rem;max-width:820px;margin:auto;}
- h2{margin-top:2rem;color:var(--accent);}
- .q{padding:1rem;border:1px solid var(--border);border-radius:6px;margin-bottom:.8rem;background:#fff;}
+ h2{margin-top:2rem;color:var(--accent); border-bottom: 2px solid #eee; padding-bottom: 0.5rem;}
+ .q{padding:1rem;border:1px solid var(--border);border-radius:6px;margin-bottom:.8rem;background:#fff; transition: background 0.3s;}
  .q.correct{border-color:var(--ok);background:#f1f8f4;}
  .q.wrong  {border-color:var(--bad);background:#fef5f5;}
- label{display:block;padding:.3rem 0;cursor:pointer;}
- button{padding:.6rem 1rem;margin:1.5rem 0;font-size:1rem;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer;}
+ label.option-label{display:block;padding:.4rem 0;cursor:pointer; transition: color 0.2s;}
+ button{padding:.6rem 1rem;margin:1.5rem 0;font-size:1rem;border:none;border-radius:4px;background:var(--accent);color:#fff;cursor:pointer; transition: background 0.3s;}
+ .check-btn { padding: 0.4rem 0.8rem; margin: 0.5rem 0 0 0; font-size: 0.9rem; }
  button:hover:not(:disabled){background:#0d47a1;}
  button:disabled{opacity:.6;cursor:not-allowed;}
- #result{font-weight:bold;font-size:1.1rem;margin-top:1rem;padding:1rem;border-radius:4px;}
- #result.show{background:#e3f2fd;border:1px solid var(--accent);}
+ #result{font-weight:bold;font-size:1.1rem;margin-top:1rem;padding:1rem;border-radius:4px; display:none;}
+ #result.show{display:block; background:#e3f2fd;border:1px solid var(--accent);}
  footer{padding:1rem;text-align:center;font-size:.85rem;color:#555;}
+ 
+ /* 代码块与解析的样式 */
+ code { background: #eee; padding: 2px 5px; border-radius: 4px; color: #d63384; font-family: monospace; }
+ .explanation {
+   display: none;
+   margin-top: 0.2rem;
+   margin-bottom: 0.8rem;
+   padding: 0.6rem;
+   background-color: #f9f9f9;
+   border-left: 3px solid var(--accent);
+   font-size: 0.9rem;
+   color: #444;
+   white-space: pre-wrap; /* 保留文本中的换行符 */
+ }
+ .explanation.show {
+   display: block;
+   animation: fadeIn 0.4s ease;
+ }
+ @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
  @media(max-width:500px){body{font-size:15px;}}
 </style>
+
+<!-- 引入 MathJax 以支持类似于 $\sigma_1$ 的 LaTeX 公式渲染 -->
+<script>
+  MathJax = {
+    tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] }
+  };
+</script>
+<script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
 </head>
 <body>
 <header><h1>Activation Records – Self-Check Quiz</h1></header>
 <main>
-  <section id="trueFalse"><h2>True / False</h2></section>
+  <section id="tf"><h2>True / False</h2></section>
   <section id="mcq"><h2>Multiple Choice</h2></section>
-  <button id="submitBtn">Check Answers</button>
   <div id="result"></div>
 </main>
 <footer>
-  <p>Based on "Activation Records" chapter. © 2026</p>
+  <p>Based on "Activation Records" chapters. © 2026</p>
   <p style="margin-top: 1rem; font-size: 0.85rem;">
     📖 源码与贡献题目请访问：<a href="https://github.com/rainoftime/tiger/tree/main/exercises" target="_blank" style="color: var(--accent); text-decoration: none;">GitHub Exercises</a>
   </p>
 </footer>
 
 <script>
-const tfWrap = document.getElementById('trueFalse');
+const tfWrap = document.getElementById('tf');
 const mcqWrap = document.getElementById('mcq');
-const submitBtn = document.getElementById('submitBtn');
 const resultBox = document.getElementById('result');
 
-// build true/false element
-function buildTF(q,i){
-  const div=document.createElement('div');
-  div.className='q';
-  div.dataset.correct=q.answer;
-  div.innerHTML=`<strong>T/F ${i+1}.</strong> ${q.question}
-    <label><input type="radio" name="tf${i}" value="true">True</label>
-    <label><input type="radio" name="tf${i}" value="false">False</label>`;
-  return div;
+// 格式化文本：将反引号包裹的文本转换为 HTML 的 <code> 标签
+function formatText(text) {
+  if(!text) return "";
+  return text.replace(/`([^`]+)`/g, '<code>$1</code>');
 }
 
-// build multiple choice element
-function buildMCQ(q,i){
-  const div=document.createElement('div');
-  div.className='q';
-  div.dataset.correct=q.answer; // store index
-  let optionsHTML='';
-  q.options.forEach((opt,idx)=>{
-    optionsHTML+=`<label><input type="radio" name="mc${i}" value="${idx}">${opt}</label>`;
+// build multiple choice / TF element
+function buildMCQ(q, globalIdx, labelPrefix = "Q"){
+  const div = document.createElement('div');
+  div.className = 'q';
+  div.dataset.correct = q.answer; // store index
+  let optionsHTML = '';
+  
+  q.options.forEach((opt, idx) => {
+    // 只有当有解析时才渲染解析 div
+    const expHTML = opt.explanation ? `<div class=explanation>${formatText(opt.explanation)}</div>` : '';
+    optionsHTML += `
+      <label class="option-label" id="lbl-${globalIdx}-${idx}">
+        <input type="radio" name="q${globalIdx}" value="${idx}">
+        <span class="opt-text">${formatText(opt.text)}</span>
+      </label>
+      ${expHTML}
+    `;
   });
-  div.innerHTML=`<strong>Q${i+1}.</strong> ${q.question}<br>${optionsHTML}`;
+  
+  div.innerHTML=`<strong>${labelPrefix}.</strong> ${formatText(q.question)}<br><div style="margin-top:0.8rem;">${optionsHTML}</div>
+                 <button class="check-btn" id="btn-${globalIdx}">Check Answer / 查看解析</button>`;
   return div;
 }
 
-// evaluate answers
-function grade(){
-  let correct=0, total=0;
-  document.querySelectorAll('.q').forEach(div=>{
-    total++;
-    const sel = div.querySelector('input[type=radio]:checked');
-    if(sel && (sel.value==div.dataset.correct)){
-      correct++;
-      div.classList.add('correct');
-      div.classList.remove('wrong');
-    }else{
-      div.classList.add('wrong');
-      div.classList.remove('correct');
+// 每道题单独的判定逻辑
+function gradeQuestion(div, qIndex, btn) {
+  const correctIdx = parseInt(div.dataset.correct);
+  const sel = div.querySelector('input[type=radio]:checked');
+  
+  // 如果没有选择，设定 selectedIdx 为 -1
+  const selectedIdx = sel ? parseInt(sel.value) : -1;
+  
+  // 判断对错（未作答视为错误）
+  if(selectedIdx === correctIdx){
+    div.classList.add('correct');
+  }else{
+    div.classList.add('wrong');
+  }
+  
+  // 显示解析
+  div.querySelectorAll('.explanation').forEach(exp => exp.classList.add('show'));
+  
+  // 高亮选项颜色（正确答案标绿加粗，选错的标红）
+  div.querySelectorAll('.option-label').forEach((lbl, idx) => {
+    const radio = lbl.querySelector('input');
+    radio.disabled = true; // 提交后禁用选项
+    
+    // 增加 padding 以适应背景色高亮
+    lbl.style.padding = '0.4rem 0.5rem';
+    lbl.style.borderRadius = '4px';
+    
+    if (idx === correctIdx) {
+      lbl.style.color = '#2e7d32';
+      lbl.style.fontWeight = 'bold';
+      lbl.style.backgroundColor = '#e8f5e9'; // 浅绿色背景
+      lbl.querySelector('.opt-text').innerHTML += ' ✅';
+    } else if (idx === selectedIdx && selectedIdx !== correctIdx) {
+      lbl.style.color = '#c62828';
+      lbl.style.fontWeight = 'bold';
+      lbl.style.backgroundColor = '#ffebee'; // 浅红色背景
+      lbl.querySelector('.opt-text').innerHTML += ' ❌';
     }
   });
-  resultBox.textContent=`Score: ${correct} / ${total} (${Math.round(correct/total*100)}%)`;
-  resultBox.className='show';
-  submitBtn.disabled=true;
+  
+  btn.disabled = true;
+  btn.textContent = 'Answered (已显示解析)';
+  
+  checkAllFinished();
+}
+// 检查是否所有题目均已作答，完成后显示总分
+function checkAllFinished() {
+  const total = quizData.trueFalse.length + quizData.multipleChoice.length;
+  const answered = document.querySelectorAll('.q.correct, .q.wrong').length;
+  if (answered === total) {
+    const correct = document.querySelectorAll('.q.correct').length;
+    resultBox.innerHTML = `All Answered! Final Score (您的总成绩): ${correct} / ${total} (${Math.round(correct/total*100)}%)`;
+    resultBox.classList.add('show');
+  }
+}
+
+// 检查是否所有题目均已作答，完成后显示总分
+function checkAllFinished() {
+  const total = quizData.multipleChoice.length;
+  const answered = document.querySelectorAll('.q.correct, .q.wrong').length;
+  if (answered === total) {
+    const correct = document.querySelectorAll('.q.correct').length;
+    resultBox.innerHTML = `All Answered! Final Score (您的总成绩): ${correct} / ${total} (${Math.round(correct/total*100)}%)`;
+    resultBox.classList.add('show');
+  }
 }
 
 // Quiz data embedded directly
 const quizData = {
   "trueFalse": [
-    { "question": "In C, local variables are destroyed when a function returns.", "answer": "true" },
-    { "question": "The combination of nested functions and function-valued variables forces some local variables to live longer than their enclosing function calls.", "answer": "true" },
-    { "question": "The Tiger language supports full higher-order functions.", "answer": "false" },
-    { "question": "A run-time stack usually grows toward higher memory addresses.", "answer": "false" },
-    { "question": "The frame pointer always contains the smallest (lowest) address of the current stack frame.", "answer": "false" },
-    { "question": "Accessing a value in a register is generally faster than accessing it in memory.", "answer": "true" },
-    { "question": "Caller-save registers must be preserved by the callee procedure.", "answer": "false" },
-    { "question": "On the MIPS, registers 16–23 are treated as callee-save.", "answer": "true" },
-    { "question": "Leaf procedures often do not allocate their own stack frame.", "answer": "true" },
-    { "question": "Passing parameters in registers reduces memory traffic compared with passing them on the stack.", "answer": "true" },
-    { "question": "In C, taking the address of a formal parameter is illegal.", "answer": "false" },
-    { "question": "A static link points to the frame of the most recent activation of the lexically enclosing function.", "answer": "true" },
-    { "question": "A display is implemented as a linked chain of static links stored inside every frame.", "answer": "false" },
-    { "question": "Lambda lifting can remove the need for static links by passing free variables as extra arguments.", "answer": "true" },
-    { "question": "In the Tiger compiler, F_access abstracts over whether a variable resides in a register or in the frame.", "answer": "true" },
-    { "question": "The extra parameter used as a static link is always marked as escaping.", "answer": "true" },
-    { "question": "The Temp module supplies an unlimited set of unique temporaries and labels.", "answer": "true" },
-    { "question": "A variable is said to escape if its address is taken with the & operator.", "answer": "true" },
-    { "question": "Non-escaping local variables must be stored in the stack frame.", "answer": "false" },
-    { "question": "FindEscape analysis must be executed after semantic analysis is finished.", "answer": "false" }
+    {
+      question: "In C, local variables are destroyed when a function returns.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nIn C, local variables are typically allocated on the stack frame of a function call. When the function finishes execution and returns, the corresponding stack frame is popped, and the memory space occupied by the local variables is released (destroyed)."
+        },
+        {
+          text: "False",
+          explanation: "If local variables were retained after the function returns, it would lead to severe memory leaks or stack overflows, violating C's lexical scoping rules and stack-based memory management principles."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "The combination of nested functions and function-valued variables forces some local variables to live longer than their enclosing function calls.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nThis involves the concept of closures. If a language supports passing functions as values, and an inner nested function captures local variables of an outer function, the lifetime of these local variables must be extended (usually allocated on the heap) after the outer function returns, because the returned inner function might still be called."
+        },
+        {
+          text: "False",
+          explanation: "If these local variables were destroyed when the outer function returns, subsequent calls to the nested function that captured these variables would access invalid memory or dangling pointers, causing undefined behavior."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "The Tiger language supports full higher-order functions.",
+      options: [
+        {
+          text: "True",
+          explanation: "If Tiger supported full higher-order functions, it could freely assign functions to variables or return them as values, like in ML or Haskell. However, the basic Tiger language is restricted in this regard."
+        },
+        {
+          text: "False",
+          explanation: "正确答案\nIn Appel's original definition of the Tiger language, functions are not first-class values. Although it supports nested functions, functions cannot be passed as arguments, assigned to variables, or returned as function results."
+        }
+      ],
+      answer: 1
+    },
+    {
+      question: "A run-time stack usually grows toward higher memory addresses.",
+      options: [
+        {
+          text: "True",
+          explanation: "The stack only grows towards higher addresses in a very few early or specific niche architectures. This is not the case for the vast majority of general-purpose architectures."
+        },
+        {
+          text: "False",
+          explanation: "正确答案\nIn the vast majority of traditional computer architectures (like x86, MIPS, ARM, etc.), the run-time stack grows from higher memory addresses towards lower memory addresses (grows downwards)."
+        }
+      ],
+      answer: 1
+    },
+    {
+      question: "The frame pointer always contains the smallest (lowest) address of the current stack frame.",
+      options: [
+        {
+          text: "True",
+          explanation: "This statement confuses the Stack Pointer (SP) with the Frame Pointer (FP). It is usually the stack pointer that contains the lowest address of the current stack."
+        },
+        {
+          text: "False",
+          explanation: "正确答案\nIn a common downward-growing stack layout, the Frame Pointer (FP) typically points to the base of the current stack frame (which is the highest starting address of the frame). The register containing the smallest (lowest) address is usually the Stack Pointer (SP)."
+        }
+      ],
+      answer: 1
+    },
+    {
+      question: "Accessing a value in a register is generally faster than accessing it in memory.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nRegisters are located inside the CPU core and operate at the CPU's highest clock speed. Accessing memory requires passing through the bus and cache hierarchy, which incurs significant latency. Therefore, register access is orders of magnitude faster than memory access."
+        },
+        {
+          text: "False",
+          explanation: "If memory access were faster than registers, the compiler backend wouldn't need to spend massive amounts of computational power on complex register allocation and spill optimizations."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "Caller-save registers must be preserved by the callee procedure.",
+      options: [
+        {
+          text: "True",
+          explanation: "If the callee were responsible for saving them, then these registers should be called \"callee-save\" registers, not caller-save."
+        },
+        {
+          text: "False",
+          explanation: "正确答案\nThe convention for caller-save registers is: if the caller wants to continue using the values in these registers after a function call, it must save them itself before making the call. The callee is free to overwrite and use these registers without restoring their original values."
+        }
+      ],
+      answer: 1
+    },
+    {
+      question: "On the MIPS, registers 16–23 are treated as callee-save.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nIn the standard MIPS calling convention (ABI), registers $s0 - $s7 (corresponding to register numbers 16 to 23) are explicitly designated as callee-save registers. A function must push their original values to the stack before using them and restore them before returning."
+        },
+        {
+          text: "False",
+          explanation: "If they were not callee-save registers, compiled code relying on the standard MIPS calling convention would suffer from severe register overwriting errors during linking or execution."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "Leaf procedures often do not allocate their own stack frame.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nLeaf procedures (functions that do not call any other functions internally) can often complete all their computations using caller-save registers directly. They don't need to save a return address (since they make no new calls), and if their local variables don't escape, they can be optimized to allocate no stack frame space at all."
+        },
+        {
+          text: "False",
+          explanation: "While complex leaf procedures might need a stack due to register spilling, a large number of simple leaf procedures can execute highly efficiently without any stack frame overhead."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "Passing parameters in registers reduces memory traffic compared with passing them on the stack.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nPassing parameters via registers is a highly efficient practice. It eliminates the overhead of the caller writing parameters to memory (pushing) and the callee reading parameters from memory (popping), thereby significantly reducing traffic demands on the memory bus."
+        },
+        {
+          text: "False",
+          explanation: "Passing parameters via the stack inherently forces memory read/write instructions (Load/Store), which inevitably increases unnecessary memory traffic and execution latency."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "In C, taking the address of a formal parameter is illegal.",
+      options: [
+        {
+          text: "True",
+          explanation: "This might be restricted in certain strictly safe languages or minimalist teaching languages, but it is an absolutely permitted fundamental feature in standard C."
+        },
+        {
+          text: "False",
+          explanation: "正确答案\nIn C, taking the address of a formal parameter using the `&` operator is completely legal. When the compiler detects that the address of a parameter has been taken, it treats the variable as \"escaping\" and is forced to allocate a physical memory address for it in the stack frame, rather than just keeping it in a register."
+        }
+      ],
+      answer: 1
+    },
+    {
+      question: "A static link points to the frame of the most recent activation of the lexically enclosing function.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nIn languages supporting lexically nested scopes, a static link is passed to nested functions as a hidden parameter. It explicitly points to the stack frame of the most recent execution of its outer environment (the lexically enclosing function) where it was declared, enabling access to outer local variables."
+        },
+        {
+          text: "False",
+          explanation: "If the static link pointed to the caller's frame, it would become a \"dynamic link\" (or saved FP), which is used to return to the caller, not to access lexically scoped variables."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "A display is implemented as a linked chain of static links stored inside every frame.",
+      options: [
+        {
+          text: "True",
+          explanation: "This description confuses two distinct technical concepts: \"Display\" and \"Static Link\". The linked list structure stored in each stack frame is the static link itself."
+        },
+        {
+          text: "False",
+          explanation: "正确答案\nA display is a different technique for implementing lexical scope access. It is typically implemented as a global array or dedicated register set, where the i-th element directly points to the most recent activation record of the function at nesting depth i. The description of \"a linked chain\" describes the implementation of Static Links, not a Display."
+        }
+      ],
+      answer: 1
+    },
+    {
+      question: "Lambda lifting can remove the need for static links by passing free variables as extra arguments.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nLambda lifting is a code transformation technique that extracts nested functions to the top-level global scope. To allow it to still access outer local variables, this process converts all involved \"free variables\" into additional formal parameters for that function. This completely eliminates the need for static links and closure structures."
+        },
+        {
+          text: "False",
+          explanation: "If free variables are not passed as extra arguments, the lifted function will lose access to its required context state, corrupting the program's semantics."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "In the Tiger compiler, F_access abstracts over whether a variable resides in a register or in the frame.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nIn Appel's \"Modern Compiler Implementation\", the `F_access` data structure provides a layer of hardware abstraction. It allows the frontend (semantic analysis and type checking) to handle variable access uniformly, without needing to know whether the variable is ultimately allocated in a machine register (InReg) or a memory stack frame (InFrame)."
+        },
+        {
+          text: "False",
+          explanation: "If early compiler stages were tightly coupled to physical locations, the IR generation process would become rigid and difficult to adapt to different target machine architectures (like MIPS vs x86)."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "The extra parameter used as a static link is always marked as escaping.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nThe static link is passed as a hidden parameter. Because deeper nested functions also need to use the outer static link to continue passing down or tracing back, the current static link often needs to be stored in stack memory to support chained lookups. Therefore, in compiler implementations like Tiger, it is typically marked as escaping."
+        },
+        {
+          text: "False",
+          explanation: "If the static link does not escape and remains only in temporary registers that are easily overwritten, the closure chain structure will easily break during deeper method calls."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "The Temp module supplies an unlimited set of unique temporaries and labels.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nDuring the compiler's Intermediate Representation (IR) generation phase, the role of the `Temp` module is to provide an \"unlimited\" supply of virtual registers (temporaries) and unique control-flow labels. Only in the later Register Allocation phase will these virtual registers be mapped to a finite set of physical hardware registers."
+        },
+        {
+          text: "False",
+          explanation: "If IR generation were constrained by the physical register count of the machine from the start, the compiler would be unable to normally produce temporary calculation results when translating complex expressions."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "A variable is said to escape if its address is taken with the & operator.",
+      options: [
+        {
+          text: "True",
+          explanation: "正确答案\nOnce the `&` operator is used to obtain a variable's address, this address might be passed to other functions or dereferenced by arbitrary pointers. Since CPU registers themselves do not have memory addresses, this variable cannot remain in a register; it must \"escape\" and be allocated in real memory (the stack frame)."
+        },
+        {
+          text: "False",
+          explanation: "Taking the address is one of the most typical and direct causes of variable escaping. If the variable didn't escape, the pointer would have nowhere valid to point to."
+        }
+      ],
+      answer: 0
+    },
+    {
+      question: "Non-escaping local variables must be stored in the stack frame.",
+      options: [
+        {
+          text: "True",
+          explanation: "The ideal home for a non-escaping variable is in a register. They are only forced into the stack frame when there is a shortage of physical registers leading to a spill."
+        },
+        {
+          text: "False",
+          explanation: "正确答案\nNon-escaping local variables (i.e., variables whose address is not taken and are not accessed by inner functions) are the most ideal candidates for allocation in CPU registers. For maximum performance optimization, the compiler will do everything possible to keep them in registers rather than in the stack frame."
+        }
+      ],
+      answer: 1
+    },
+    {
+      question: "FindEscape analysis must be executed after semantic analysis is finished.",
+      options: [
+        {
+          text: "True",
+          explanation: "If escape analysis waits until after semantic analysis is completed, then semantic analysis loses necessary decision criteria during the local variable declaration and allocation phase."
+        },
+        {
+          text: "False",
+          explanation: "正确答案\nIn the Tiger compiler architecture, escape analysis (FindEscape) must be executed after parsing, **before semantic analysis begins** (or tightly integrated during IR translation). This is because the semantic analysis phase needs to know immediately whether a variable escapes when processing its declaration (calling `F_allocLocal`), in order to decide whether to allocate physical memory or a virtual register for it."
+        }
+      ],
+      answer: 1
+    }
   ],
   "multipleChoice": [
     {
-      "question": "Which combination of language features requires some locals to outlive their calling frames?",
-      "options": [
-        "A. Recursion only",
-        "B. Nested functions only",
-        "C. Nested functions plus function-valued variables",
-        "D. Global variables only"
+      question: "Which combination of language features requires some locals to outlive their calling frames?",
+      options: [
+        {text: "A. Recursion only", explanation: "Recursion just creates multiple stack frames, but they still follow strict LIFO order, so locals do not outlive their frames."},
+        {text: "B. Nested functions only", explanation: "Nested functions alone can be handled with static links and regular stack frames as long as functions are not returned or assigned to variables."},
+        {text: "C. Nested functions plus function-valued variables", explanation: "正确答案\nWhen nested functions can be passed as function-valued variables (closures) and escape the scope that created them, their captured local variables must outlive the creating function's execution frame, necessitating heap allocation."},
+        {text: "D. Global variables only", explanation: "Global variables live indefinitely by default in a static data section, not in calling frames."}
       ],
-      "answer": "2"
+      answer: 2
     },
     {
-      "question": "In a typical stack frame, which item is produced automatically by the CALL instruction?",
-      "options": [
-        "A. Static link",
-        "B. Return address",
-        "C. Outgoing argument area",
-        "D. Saved callee-save registers"
+      question: "In a typical stack frame, which item is produced automatically by the CALL instruction?",
+      options: [
+        {text: "A. Static link", explanation: "The static link must be manually passed by the compiler (usually as a hidden extra parameter) to access non-local variables."},
+        {text: "B. Return address", explanation: "正确答案\nThe hardware CALL instruction automatically pushes the return address (the next instruction pointer) to the stack or places it in a specific link register."},
+        {text: "C. Outgoing argument area", explanation: "The outgoing argument area is manually allocated and populated by the caller before the CALL instruction is executed."},
+        {text: "D. Saved callee-save registers", explanation: "Callee-save registers are saved by explicit store instructions inside the callee's prologue, not automatically by the CALL instruction itself."}
       ],
-      "answer": "1"
+      answer: 1
     },
     {
-      "question": "The primary purpose of the frame pointer (FP) is to:",
-      "options": [
-        "A. Hold the address of the next instruction to execute",
-        "B. Serve as a stable base for accessing formals and locals",
-        "C. Mark the top of the heap",
-        "D. Store the program counter before a call"
+      question: "The primary purpose of the frame pointer (FP) is to:",
+      options: [
+        {text: "A. Hold the address of the next instruction to execute", explanation: "This is the purpose of the Program Counter (PC) or Instruction Pointer (IP)."},
+        {text: "B. Serve as a stable base for accessing formals and locals", explanation: "正确答案\nThe stack pointer (SP) may fluctuate as data is pushed/popped during function execution, so the frame pointer provides a constant reference point to safely access local variables and arguments via fixed offsets."},
+        {text: "C. Mark the top of the heap", explanation: "The heap is managed dynamically by memory allocators, tracked by completely separate structures, and is unrelated to the FP."},
+        {text: "D. Store the program counter before a call", explanation: "Storing the program counter is done via the return address mechanism, typically using a link register or the stack, not the frame pointer."}
       ],
-      "answer": "1"
+      answer: 1
     },
     {
-      "question": "According to the calling convention cited, which MIPS registers are callee-save?",
-      "options": [
-        "A. 2–7",
-        "B. 8–15",
-        "C. 16–23",
-        "D. 24–31"
+      question: "According to the calling convention cited, which MIPS registers are callee-save?",
+      options: [
+        {text: "A. 2–7", explanation: "In MIPS, registers 2-3 are for return values (v0-v1) and 4-7 are for arguments (a0-a3), which are caller-save or specific purpose."},
+        {text: "B. 8–15", explanation: "Registers 8-15 (t0-t7) are temporary registers and follow the caller-save convention."},
+        {text: "C. 16–23", explanation: "正确答案\nIn the standard MIPS calling convention, registers 16-23 (s0-s7) are designated as 'saved' or callee-save registers, meaning the called function must restore them if it modifies them."},
+        {text: "D. 24–31", explanation: "Registers 24-25 are caller-save temporaries, while 26-31 serve various special hardware/OS purposes (kernel, gp, sp, fp, ra)."}
       ],
-      "answer": "2"
+      answer: 2
     },
     {
-      "question": "Empirical studies show that very few procedures have more than how many arguments?",
-      "options": [
-        "A. One",
-        "B. Two",
-        "C. Three",
-        "D. Four"
+      question: "Empirical studies show that very few procedures have more than how many arguments?",
+      options: [
+        {text: "A. One", explanation: "Many common procedures take more than one argument."},
+        {text: "B. Two", explanation: "Many common procedures take more than two arguments."},
+        {text: "C. Three", explanation: "While three is common, typical threshold designs account for slightly more to cover the vast majority of cases."},
+        {text: "D. Four", explanation: "正确答案\nCompiler empirical studies show that the vast majority of functions take four or fewer arguments, which is why RISC architectures like MIPS specifically allocate exactly 4 registers (a0-a3) for passing arguments."}
       ],
-      "answer": "3"
+      answer: 3
     },
     {
-      "question": "Which of the following is NOT a reason a value is written to the stack frame?",
-      "options": [
-        "A. The variable is accessed from a nested function.",
-        "B. The variable is passed by reference.",
-        "C. The value fits within a single register and never escapes.",
-        "D. There are insufficient registers due to spilling."
+      question: "Which of the following is NOT a reason a value is written to the stack frame?",
+      options: [
+        {text: "A. The variable is accessed from a nested function.", explanation: "A variable accessed by a nested function escapes its scope and must be placed in memory so the nested function can find it via a static link."},
+        {text: "B. The variable is passed by reference.", explanation: "Passing a variable by reference requires it to have a memory address, meaning it must be written to the stack."},
+        {text: "C. The value fits within a single register and never escapes.", explanation: "正确答案\nIf a value fits perfectly in a register and never escapes (its address isn't taken and it isn't accessed by nested functions), it can remain entirely in registers and does not need to be written to the stack frame."},
+        {text: "D. There are insufficient registers due to spilling.", explanation: "When register pressure is too high, variables are forced (spilled) into the stack frame because physical registers are exhausted."}
       ],
-      "answer": "2"
+      answer: 2
     },
     {
-      "question": "In caller-save convention, who is responsible for preserving a register's value across a call?",
-      "options": [
-        "A. The called function only",
-        "B. The calling function only",
-        "C. The operating system",
-        "D. No one; the value is assumed dead"
+      question: "In caller-save convention, who is responsible for preserving a register's value across a call?",
+      options: [
+        {text: "A. The called function only", explanation: "The called function handles callee-save registers, not caller-save registers. It is free to overwrite caller-save registers without preserving them."},
+        {text: "B. The calling function only", explanation: "正确答案\nIf a caller needs the value of a caller-save register to survive a function call, the caller itself must explicitly save it to the stack before the call and restore it afterward."},
+        {text: "C. The operating system", explanation: "The OS only saves registers during asynchronous context switches (like hardware interrupts), not during regular procedural function calls."},
+        {text: "D. No one; the value is assumed dead", explanation: "If the value is needed later, assuming it is dead will result in data corruption; someone (the caller) must preserve it."}
       ],
-      "answer": "1"
+      answer: 1
     },
     {
-      "question": "Which data structure directly supports O(1) push and pop and naturally fits LIFO activation of procedures?",
-      "options": [
-        "A. Queue",
-        "B. Heap",
-        "C. Stack",
-        "D. Binary tree"
+      question: "Which data structure directly supports O(1) push and pop and naturally fits LIFO activation of procedures?",
+      options: [
+        {text: "A. Queue", explanation: "A queue uses a FIFO (First-In, First-Out) structure, which contradicts function execution where the most recently called function must return first."},
+        {text: "B. Heap", explanation: "A heap is used for dynamic memory allocation with arbitrary variable lifetimes, lacking a strict order of allocation/deallocation."},
+        {text: "C. Stack", explanation: "正确答案\nA stack perfectly matches the Last-In, First-Out (LIFO) semantics of function calls and returns, executing push and pop activation record operations in O(1) time."},
+        {text: "D. Binary tree", explanation: "A binary tree is useful for hierarchical data organization and fast search operations, not for sequential, nested procedure activation management."}
       ],
-      "answer": "2"
+      answer: 2
     },
     {
-      "question": "What does the Tiger compiler's FindEscape pass compute?",
-      "options": [
-        "A. Register allocation",
-        "B. Type equivalence",
-        "C. Which variables need addresses beyond their declaring scope",
-        "D. Instruction scheduling"
+      question: "What does the Tiger compiler's FindEscape pass compute?",
+      options: [
+        {text: "A. Register allocation", explanation: "Register allocation happens much later in the backend compilation phases, typically utilizing graph coloring techniques."},
+        {text: "B. Type equivalence", explanation: "Type equivalence is evaluated during semantic analysis and type-checking phases, independent of variable memory management."},
+        {text: "C. Which variables need addresses beyond their declaring scope", explanation: "正确答案\nThe FindEscape pass traverses the AST to determine which variables 'escape' (e.g., are accessed by nested functions or passed by reference) and therefore must be allocated on the stack rather than in registers."},
+        {text: "D. Instruction scheduling", explanation: "Instruction scheduling is a backend optimization phase designed to avoid pipeline stalls, unrelated to determining variable escape status."}
       ],
-      "answer": "2"
+      answer: 2
     },
     {
-      "question": "In the Frame module, a value stored at an offset from FP is represented by:",
-      "options": [
-        "A. InReg temp",
-        "B. InFrame offset",
-        "C. InHeap pointer",
-        "D. InDisplay index"
+      question: "In the Frame module, a value stored at an offset from FP is represented by:",
+      options: [
+        {text: "A. InReg temp", explanation: "InReg is used to represent a variable that is allocated safely within a machine temporary/register, not at a frame pointer offset."},
+        {text: "B. InFrame offset", explanation: "正确答案\nThe InFrame(offset) datatype constructor explicitly represents a variable whose physical location is designated as a specific memory offset relative to the current frame pointer (FP)."},
+        {text: "C. InHeap pointer", explanation: "InHeap is not a standard Tiger Frame module representation for local variables; heap memory is managed via standard library pointers."},
+        {text: "D. InDisplay index", explanation: "InDisplay relates to using a display array for nested lexical scopes, not the specific Frame module representation for a local stack offset."}
       ],
-      "answer": "1"
+      answer: 1
     },
     {
-      "question": "What is the extra first element that Translate adds to a function's formal-parameter list?",
-      "options": [
-        "A. Return value slot",
-        "B. Saved program counter",
-        "C. Static link",
-        "D. Alignment padding"
+      question: "What is the extra first element that Translate adds to a function's formal-parameter list?",
+      options: [
+        {text: "A. Return value slot", explanation: "Return values are typically returned in designated registers (like v0 in MIPS), not passed into the function as an extra formal parameter."},
+        {text: "B. Saved program counter", explanation: "The saved program counter (return address) is handled by the hardware/calling convention during CALL, not appended to the logical parameter list."},
+        {text: "C. Static link", explanation: "正确答案\nIn languages supporting nested functions (like Tiger), the Translate phase adds an implicit static link as the first argument so the inner function can navigate up the frame chain to access enclosing scope variables."},
+        {text: "D. Alignment padding", explanation: "Alignment padding is inserted dynamically during stack frame layout formatting, not modelled as a formal parameter."}
       ],
-      "answer": "2"
+      answer: 2
     },
     {
-      "question": "Which technique keeps an array of pointers, one per nesting depth, to access non-local variables?",
-      "options": [
-        "A. Static link chaining",
-        "B. Display",
-        "C. Lambda lifting",
-        "D. Register windows"
+      question: "Which technique keeps an array of pointers, one per nesting depth, to access non-local variables?",
+      options: [
+        {text: "A. Static link chaining", explanation: "Static link chaining involves following pointers sequentially from one frame to the enclosing frame (O(n) time based on depth), rather than using an array."},
+        {text: "B. Display", explanation: "正确答案\nA 'display' is a globally maintained array where display[i] points directly to the active activation record at lexical nesting depth i, allowing O(1) access to non-local variables."},
+        {text: "C. Lambda lifting", explanation: "Lambda lifting is a transformation that rewrites nested functions into flat global functions by passing all non-local variables explicitly as extra arguments."},
+        {text: "D. Register windows", explanation: "Register windows are a hardware architecture feature (like in SPARC) for passing parameters efficiently, completely distinct from software lexical scope management."}
       ],
-      "answer": "1"
+      answer: 1
     },
     {
-      "question": "If a variable's address is taken using C's & operator, the variable is said to:",
-      "options": [
-        "A. Spill",
-        "B. Inline",
-        "C. Escape",
-        "D. Collapse"
+      question: "If a variable's address is taken using C's & operator, the variable is said to:",
+      options: [
+        {text: "A. Spill", explanation: "Spilling occurs during register allocation when physical registers run out, forcing a temporary to memory. It's an allocation consequence, not the term for taking an address."},
+        {text: "B. Inline", explanation: "Inlining is a compiler optimization that replaces a function call with the actual function body."},
+        {text: "C. Escape", explanation: "正确答案\nIf a variable's address is taken (e.g., &var), it 'escapes' because it can be accessed indirectly through pointers from anywhere, requiring it to be allocated in addressable memory rather than a register."},
+        {text: "D. Collapse", explanation: "Collapse is not standard compiler terminology for this situation."}
       ],
-      "answer": "2"
+      answer: 2
     },
     {
-      "question": "Which of the following best describes \"leaf\" procedures?",
-      "options": [
-        "A. Procedures that call no other procedures",
-        "B. Procedures at the top of the call chain",
-        "C. Recursive procedures",
-        "D. Higher-order procedures"
+      question: "Which of the following best describes \"leaf\" procedures?",
+      options: [
+        {text: "A. Procedures that call no other procedures", explanation: "正确答案\nA leaf procedure is a function that does not make calls to any other functions. They can often be heavily optimized (e.g., skipping frame allocation or not saving the return address)."},
+        {text: "B. Procedures at the top of the call chain", explanation: "The 'top of the call chain' implies the main entry point, which typically calls many other procedures and is thus not a leaf."},
+        {text: "C. Recursive procedures", explanation: "Recursive procedures call themselves, meaning they make function calls and cannot be leaf procedures."},
+        {text: "D. Higher-order procedures", explanation: "Higher-order procedures manipulate other functions and often invoke them, which typically makes them non-leaf procedures."}
       ],
-      "answer": "0"
+      answer: 0
     },
     {
-      "question": "On modern RISC machines, the return address is usually passed:",
-      "options": [
-        "A. On the stack",
-        "B. In a designated register",
-        "C. In the heap",
-        "D. In a static global variable"
+      question: "On modern RISC machines, the return address is usually passed:",
+      options: [
+        {text: "A. On the stack", explanation: "Automatically pushing the return address to the stack is characteristic of CISC architectures (like x86), which heavily use memory-based control flow."},
+        {text: "B. In a designated register", explanation: "正确答案\nRISC architectures (like MIPS or ARM) prioritize speed and typically place the return address into a designated link register (e.g., $ra or LR) instead of forcing an immediate memory write."},
+        {text: "C. In the heap", explanation: "The heap handles dynamic, long-lived data, completely unsuitable for passing fast, short-lived control flow information like a return address."},
+        {text: "D. In a static global variable", explanation: "Using a static global variable would break recursion and reentrancy entirely, as nested calls would overwrite the single saved return address."}
       ],
-      "answer": "1"
+      answer: 1
     },
     {
-      "question": "Which file in the Tiger compiler specifically hides machine-dependent frame details from the rest of the compiler?",
-      "options": [
-        "A. translate.c",
-        "B. semant.c",
-        "C. frame.h",
-        "D. temp.c"
+      question: "Which file in the Tiger compiler specifically hides machine-dependent frame details from the rest of the compiler?",
+      options: [
+        {text: "A. translate.c", explanation: "translate.c handles IR translation and uses the frame abstraction, but it does not define the machine-dependent specifics itself."},
+        {text: "B. semant.c", explanation: "semant.c performs pure semantic analysis and type checking. It is machine-independent and agnostic of stack frames."},
+        {text: "C. frame.h", explanation: "正确答案\nThe frame.h interface defines abstract data types and methods (like F_frame, F_access) that cleanly encapsulate and hide the machine-specific details of stack layouts and calling conventions."},
+        {text: "D. temp.c", explanation: "temp.c provides abstract names for registers and labels, related to register allocation but not the main abstraction for machine stack frames."}
       ],
-      "answer": "2"
+      answer: 2
     },
     {
-      "question": "What does Temp_newtemp() return?",
-      "options": [
-        "A. A fresh frame pointer",
-        "B. A unique temporary name",
-        "C. A new stack offset",
-        "D. A unique label"
+      question: "What does Temp_newtemp() return?",
+      options: [
+        {text: "A. A fresh frame pointer", explanation: "Frame pointers are part of the runtime system's stack management, not abstractly allocated piece-by-piece."},
+        {text: "B. A unique temporary name", explanation: "正确答案\nTemp_newtemp() generates and returns a unique abstract temporary 'variable', which the backend register allocator will later color into a physical machine register or a stack spill slot."},
+        {text: "C. A new stack offset", explanation: "Stack offsets are calculated when allocating an escaping variable explicitly in a frame (e.g., via F_allocLocal), not through the Temp module."},
+        {text: "D. A unique label", explanation: "A unique label for control flow targets (like branches) is generated by a different function, Temp_newlabel()."}
       ],
-      "answer": "1"
+      answer: 1
     },
     {
-      "question": "Which of these is a valid reason for a compiler to generate a move instruction in the view-shift phase even when parameters arrive in registers?",
-      "options": [
-        "A. To obey caller-save convention",
-        "B. To ensure parameters occupy consecutive memory for C's varargs",
-        "C. To free the parameter registers for the callee's own use",
-        "D. All of the above"
+      question: "Which of these is a valid reason for a compiler to generate a move instruction in the view-shift phase even when parameters arrive in registers?",
+      options: [
+        {text: "A. To obey caller-save convention", explanation: "If a parameter is in a caller-save register and the function makes another call, moving it protects it from being overwritten."},
+        {text: "B. To ensure parameters occupy consecutive memory for C's varargs", explanation: "Variadic functions require register arguments to be dumped to consecutive stack memory to be parsed correctly by pointer arithmetic."},
+        {text: "C. To free the parameter registers for the callee's own use", explanation: "The callee itself might need to prepare arguments for functions it calls, requiring those incoming argument registers to be freed up immediately."},
+        {text: "D. All of the above", explanation: "正确答案\nAll of the listed reasons are highly valid scenarios where the view-shift phase must generate move instructions to shift incoming register parameters to new registers or memory slots."}
       ],
-      "answer": "3"
+      answer: 3
     },
     {
-      "question": "Which stack frame area is used to store parameters for functions that the current function will call?",
-      "options": [
-        "A. Incoming arguments area",
-        "B. Saved registers area",
-        "C. Outgoing arguments area",
-        "D. Temporaries area"
+      question: "Which stack frame area is used to store parameters for functions that the current function will call?",
+      options: [
+        {text: "A. Incoming arguments area", explanation: "The incoming arguments area holds parameters that were passed *to* the current function by its caller."},
+        {text: "B. Saved registers area", explanation: "The saved registers area is purely for preserving callee-save registers before the current function modifies them."},
+        {text: "C. Outgoing arguments area", explanation: "正确答案\nThe outgoing arguments area is allocated by the current function at the bottom of its stack frame to place arguments for the subsequent functions it intends to call."},
+        {text: "D. Temporaries area", explanation: "The temporaries area is used to store local variables and spilled registers during local computation, not formatted for a callee's incoming arguments."}
       ],
-      "answer": "2"
+      answer: 2
     },
     {
-      "question": "In the Frame abstraction, which function allocates space for a new local variable?",
-      "options": [
-        "A. F_newFrame",
-        "B. F_formals",
-        "C. F_allocLocal",
-        "D. Tr_newLevel"
+      question: "In the Frame abstraction, which function allocates space for a new local variable?",
+      options: [
+        {text: "A. F_newFrame", explanation: "F_newFrame initializes a completely new, empty stack frame object for a procedure, but doesn't allocate individual variables within it."},
+        {text: "B. F_formals", explanation: "F_formals retrieves the list of access objects (registers or memory offsets) corresponding to a frame's incoming formal parameters."},
+        {text: "C. F_allocLocal", explanation: "正确答案\nF_allocLocal(frame, escape) dynamically adds a new local variable to the specified frame, assigning it to either a new temporary register or a new memory offset based on the escape boolean."},
+        {text: "D. Tr_newLevel", explanation: "Tr_newLevel is a higher-level translation function that wraps F_newFrame to handle static linking scopes, not to allocate a single local variable."}
       ],
-      "answer": "2"
+      answer: 2
     }
   ]
 };
 
-// Build UI with embedded data
-quizData.trueFalse.forEach((q,i)=>tfWrap.appendChild(buildTF(q,i)));
-quizData.multipleChoice.forEach((q,i)=>mcqWrap.appendChild(buildMCQ(q,i)));
-submitBtn.addEventListener('click',grade);
+// 动态构建界面
+let globalCounter = 0;
+
+// 1. 渲染判断题
+quizData.trueFalse.forEach((q, i) => {
+  const qDiv = buildMCQ(q, globalCounter, `T/F ${i+1}`);
+  tfWrap.appendChild(qDiv);
+  
+  const btn = qDiv.querySelector(`#btn-${globalCounter}`);
+  const currentCounter = globalCounter;
+  btn.addEventListener('click', () => gradeQuestion(qDiv, currentCounter, btn));
+  globalCounter++;
+});
+
+// 2. 渲染单选题
+quizData.multipleChoice.forEach((q, i) => {
+  const qDiv = buildMCQ(q, globalCounter, `Q${i+1}`);
+  mcqWrap.appendChild(qDiv);
+  
+  const btn = qDiv.querySelector(`#btn-${globalCounter}`);
+  const currentCounter = globalCounter;
+  btn.addEventListener('click', () => gradeQuestion(qDiv, currentCounter, btn));
+  globalCounter++;
+});
 </script>
 </body>
 </html>
