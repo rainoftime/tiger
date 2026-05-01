@@ -1,29 +1,21 @@
 """
-Graph Coloring Register Allocator for Tiger Compiler
+Graph-coloring register allocation for Tiger assembly.
 
-This module implements graph coloring register allocation using the algorithm
-described in "Modern Compiler Implementation in ML" by Andrew Appel.
+This file implements the Appel-style worklist allocator that runs after
+instruction selection and liveness analysis. It starts from assembly templates
+whose operands are symbolic temporaries and attempts to map each temp onto a
+real machine register.
 
-The register allocator:
-1. **Builds interference graph** from liveness information
-2. **Colors the graph** using graph coloring heuristics
-3. **Handles spills** when coloring fails (not enough registers)
-4. **Coalesces** move instructions to eliminate unnecessary copies
+The allocator has three broad responsibilities:
 
-Algorithm Overview:
-- Simplify: Remove non-constrained temporaries and push on stack
-- Coalesce: Merge move-related temporaries when safe
-- Freeze: Freeze low-degree move-related temporaries
-- Spill: Select spill candidates when no other options exist
-- Select: Pop stack and assign colors (register mappings)
+- Build the interference graph and move relation from the liveness results.
+- Run the simplify/coalesce/freeze/spill worklist loop until every temp is
+  either pushed onto the select stack or chosen for spilling.
+- Assign concrete registers on the way back out, and if coloring fails for some
+  temps, rewrite the program with explicit loads/stores and try again.
 
-Key Data Structures:
-- Interference Graph: Nodes represent temporaries, edges represent conflicts
-- Worklists: Separate queues for different types of temporaries
-- Coloring: Mapping from temporaries to physical registers
-- Spilling: When not enough registers, some temporaries go to memory
-
-Author: Tiger Compiler Project
+This implementation is intentionally close to the textbook algorithm, so the
+method names line up with the conceptual phases described in Appel.
 """
 
 from typing import List, Set, Dict, Tuple, TypeVar
@@ -191,7 +183,15 @@ class RegisterAllocator:
         self._make_worklist()
 
     def _initialize_adjacency_structures(self, interference_graph: Graph[Temp]):
-        """Initializes the adjacency structures for the graph."""
+        """Materialize degree and adjacency information from the interference graph.
+
+        ``Graph`` stores node objects, but the allocator's worklists operate on
+        plain ``Temp`` values. This method converts the graph into:
+
+        - ``adjacencies``: a fast membership set for edge existence checks
+        - ``adjacent_nodes``: neighbor lists per temp
+        - ``node_degree``: the current degree used by simplify/coalesce heuristics
+        """
         self.adjacencies: Set[Tuple[Temp, Temp]] = set()
         self.adjacent_nodes: Dict[Temp, List[Temp]] = {
             temporary: [] for temporary in self.initial
@@ -206,7 +206,12 @@ class RegisterAllocator:
                 self._add_edge(node.information, neighbor.information)
 
     def _add_edge(self, node1: Temp, node2: Temp):
-        """Adds an edge between two nodes in the interference graph."""
+        """Insert an interference edge and update dynamic degree counts.
+
+        Precolored nodes represent fixed machine registers. They participate in
+        adjacency tests, but their degree is treated as effectively infinite so
+        the allocator never tries to simplify them away.
+        """
         if (node1, node2) not in self.adjacencies and node1 != node2:
             self.adjacencies.add((node1, node2))
             self.adjacencies.add((node2, node1))
@@ -218,7 +223,12 @@ class RegisterAllocator:
                 self.node_degree[node2] = self.node_degree[node2] + 1
 
     def _make_worklist(self):
-        """Initializes the worklists for the algorithm."""
+        """Partition uncolored temps into the initial worklists.
+
+        High-degree nodes start as spill candidates. Low-degree nodes are split
+        between ``freeze_worklist`` and ``simplify_worklist`` depending on
+        whether they still participate in unresolved move instructions.
+        """
         for node in self.initial:
             if self.node_degree[node] >= self.color_amount:
                 self.spill_worklist.append(node)
@@ -228,7 +238,7 @@ class RegisterAllocator:
                 self.simplify_worklist.append(node)
 
     def _node_moves(self, node: Temp) -> List[Move]:
-        """."""
+        """Return the still-relevant moves touching ``node``."""
         return [
             move
             for move in self.move_list[node]
@@ -236,10 +246,16 @@ class RegisterAllocator:
         ]
 
     def _move_related(self, node: Temp) -> bool:
+        """Whether ``node`` is still tied to a move that may be coalesced."""
         return len(self._node_moves(node)) > 0
 
     def _simplify(self):
-        """Simplifies the graph by removing nodes with degree less than the color amount."""
+        """Pop trivially colorable nodes and push them onto the select stack.
+
+        Removing a low-degree node may cause its neighbors to drop below the
+        color threshold, which is why every removal is followed by degree
+        updates on the remaining adjacent nodes.
+        """
         while self.simplify_worklist:
             node = self.simplify_worklist.pop(0)
             self.select_stack.append(node)
@@ -247,6 +263,7 @@ class RegisterAllocator:
                 self._decrement_degree(adjacent_node)
 
     def _adjacent(self, node: Temp) -> List[Temp]:
+        """Neighbors of ``node`` that are still active in the current graph."""
         return [
             adjacent_node
             for adjacent_node in self.adjacent_nodes[node]
@@ -255,8 +272,11 @@ class RegisterAllocator:
         ]
 
     def _decrement_degree(self, node: Temp):
+        """Update degree bookkeeping after one incident edge disappears."""
         self.node_degree[node] = self.node_degree[node] - 1
         if self.node_degree[node] == self.color_amount - 1:
+            # Crossing below K can make pending moves attractive again and may
+            # move the node out of the spill worklist.
             self._enable_moves([node] + self._adjacent(node))
             self._maybe_remove_from_list(self.spill_worklist, node)
             if self._move_related(node):
@@ -265,6 +285,7 @@ class RegisterAllocator:
                 self.simplify_worklist.append(node)
 
     def _enable_moves(self, nodes: List[Temp]):
+        """Move active coalescing candidates back onto the main move worklist."""
         for node in nodes:
             for move in self._node_moves(node):
                 if move in self.active_moves:
@@ -304,6 +325,7 @@ class RegisterAllocator:
                 self.active_moves.append(move)
 
     def _add_work_list(self, node: Temp):
+        """Promote a node to ``simplify_worklist`` once it becomes easy enough."""
         if (
                 node not in self.precolored
                 and not self._move_related(node)
@@ -313,7 +335,7 @@ class RegisterAllocator:
             self.simplify_worklist.append(node)
 
     def _precolored_coalesceable(self, node: Temp, precolored_node: Temp) -> bool:
-        """Georage's conservative coalesceable algorithm"""
+        """George's test for safely coalescing into a precolored register."""
         return (
                 self.node_degree[node] < self.color_amount
                 or node in self.precolored
@@ -321,19 +343,21 @@ class RegisterAllocator:
         )
 
     def _conservative_coalesceable(self, nodes: Set[Temp]) -> bool:
+        """Briggs's conservative test for coalescing two non-precolored nodes."""
         significant_node_count = 0
-        """Briggs's conservative coalesceable algorithm"""
         for node in nodes:
             if self.node_degree[node] >= self.color_amount:
                 significant_node_count += 1
         return significant_node_count < self.color_amount
 
     def _get_alias(self, node: Temp) -> Temp:
+        """Follow coalescing aliases to the current representative temp."""
         if node in self.coalesced_nodes:
             return self._get_alias(self.alias[node])
         return node
 
     def _combine(self, u: Temp, v: Temp):
+        """Merge node ``v`` into representative ``u`` after a successful coalesce."""
         if v in self.freeze_worklist:
             self.freeze_worklist.remove(v)
         else:
@@ -349,12 +373,14 @@ class RegisterAllocator:
             self.spill_worklist.append(u)
 
     def _freeze(self):
+        """Give up on coalescing for some low-degree move-related nodes."""
         while self.freeze_worklist:
             node = self.freeze_worklist.pop(0)
             self.simplify_worklist.append(node)
             self._freeze_moves(node)
 
     def _freeze_moves(self, node: Temp):
+        """Convert node-adjacent moves from coalescable to ordinary copies."""
         for move in self._node_moves(node):
             x = self._get_alias(move.source[0])
             y = self._get_alias(move.destination[0])
@@ -370,6 +396,7 @@ class RegisterAllocator:
                 self.simplify_worklist.append(v)
 
     def _select_spill(self):
+        """Choose one currently hard-to-color node as the next spill candidate."""
         spillable_nodes = [
             node for node in self.spill_worklist if node not in self.precolored
         ]
@@ -379,11 +406,18 @@ class RegisterAllocator:
         self._freeze_moves(spilled_node)
 
     def _spill_heuristic(self, node: Temp) -> float:
+        """Prefer spilling temps with low use density relative to their degree."""
         return (
                 len(self.temp_uses[node]) + len(self.temp_definitions[node])
         ) / self.node_degree[node]
 
     def _assign_colors(self):
+        """Pop the select stack and choose a legal register for each temp.
+
+        This is the "select" phase from graph coloring: once the graph has been
+        simplified, nodes are reintroduced in reverse order and each one picks
+        any register color not already used by an interfering colored neighbor.
+        """
         while self.select_stack:
             node = self.select_stack.pop()
             possible_colors = self.precolored.copy()
@@ -403,6 +437,18 @@ class RegisterAllocator:
             self.color[node] = self.color[self._get_alias(node)]
 
     def _rewrite_program(self, instructions: List[Instruction]) -> List[Instruction]:
+        """Rewrite spilled temps through stack slots and restart allocation.
+
+        For each spilled temp we reserve a frame-local slot, then:
+
+        - insert a load before every use
+        - replace the use with a fresh temporary
+        - insert a store after every definition
+        - replace the definition with a fresh temporary
+
+        The allocator then reruns on this expanded instruction stream, where the
+        freshly created temporaries may now be colorable.
+        """
         for node in self.spilled_nodes:
             memory_access = self.frame.alloc_local(True)
             for use_instruction in self.temp_uses[node]:
@@ -440,5 +486,6 @@ class RegisterAllocator:
         return instructions
 
     def _maybe_remove_from_list(self, list: List[T], element: T):
+        """Remove ``element`` if present, otherwise leave the list untouched."""
         if element in list:
             list.remove(element)

@@ -1,25 +1,24 @@
 """
-Tiger Compiler - Instruction Selection (Code Generation)
+Instruction selection for Tiger IR on x86-64.
 
-This module implements the instruction selection phase of the Tiger compiler,
-converting intermediate representation (IR) trees into assembly language instructions.
+This is the first lowering step from canonical IR trees to target-specific
+assembly templates. The implementation follows Appel's "munch" style: inspect
+the outermost IR node, emit a small number of x86-64 instructions for it, and
+recursively munch the child expressions needed to feed that template.
 
-The instruction selection process:
-1. **Pattern Matching**: Recognizes IR tree patterns and maps them to machine instructions
-2. **Tree Traversal**: Recursively processes IR trees using a bottom-up approach
-3. **Register Management**: Manages temporary variables and physical registers
-4. **Instruction Emission**: Generates x86-64 assembly code in AT&T syntax
+Important constraints for reading this file:
 
-Architecture:
-- Uses a recursive descent approach for pattern matching
-- Generates code for x86-64 architecture with System V ABI
-- Handles all IR constructs: statements, expressions, control flow
-- Manages calling conventions and stack frame layout
+- The input IR is already canonicalized, so ``Sequence`` and
+  ``EvaluateSequence`` nodes should not reach this phase.
+- The emitted objects are not final strings; they are assembly templates with
+  explicit use/def temp lists so later passes can build flow graphs and run
+  liveness analysis.
+- The target is x86-64 in AT&T syntax under the System V ABI, so argument
+  registers, caller-saved registers, ``rax`` return values, and stack argument
+  layout all follow that convention.
 
-Target Architecture: x86-64 (AT&T syntax)
-Calling Convention: System V ABI
-
-Author: Tiger Compiler Project
+The selector is intentionally simple rather than optimal. It favors clarity and
+correctness over sophisticated tree tiling.
 """
 
 from typing import List
@@ -124,7 +123,8 @@ def munch_statement(stmNode: IRT.Statement) -> None:
         stmNode (IRT.Statement): The IR statement node to generate code for
 
     Note:
-        This function modifies global state by emitting instructions to Codegen.
+        This function modifies global state by emitting instructions to
+        ``Codegen.instruction_list``.
     """
     if isinstance(stmNode, IRT.Label):
         Codegen.emit(Assembly.Label(line=f"{stmNode.label}:\n", label=stmNode.label))
@@ -215,6 +215,16 @@ def munch_statement(stmNode: IRT.Statement) -> None:
 
 
 def munch_arguments(arg_list: List[IRT.Expression]) -> List[Temp.Temp]:
+    """Evaluate call arguments and place them where the ABI expects them.
+
+    The first arguments travel through the conventional argument registers.
+    Remaining arguments are written into outgoing stack-argument slots that were
+    reserved by the caller immediately before the ``call`` instruction.
+
+    Returns:
+        List[Temp.Temp]: The temporaries that now hold the register-passed
+        arguments. This list becomes part of the call instruction's use set.
+    """
     # Pass arguments through registers.
     temp_list = []
     for argument, register in zip(arg_list, Frame.argument_registers):
@@ -245,6 +255,12 @@ def munch_arguments(arg_list: List[IRT.Expression]) -> List[Temp.Temp]:
 
 
 def munch_expression(expNode: IRT.Expression) -> Temp.Temp:
+    """Generate code for an IR expression and return the temp holding the result.
+
+    Every case emits enough instructions so the expression's value is available
+    in a temporary afterwards. Higher-level patterns use the returned temp to
+    connect templates together without committing to concrete registers yet.
+    """
     # BinaryOperation(operator, exp_left, exp_right): Apply the binary operator
     # 'operator' to operands 'exp_left' and 'exp_right'. 'exp_left' is evaluated
     # before 'exp_right'.
@@ -303,8 +319,8 @@ def munch_expression(expNode: IRT.Expression) -> Temp.Temp:
                     destination=[rax],
                 )
             )
-            # R[%rdx]:R[%rax] <- SignExtend(R[%rax])
-            # This is necessary only for the division, since it uses RDX:RAX as the dividend.
+            # ``idiv`` reads a 128-bit dividend from RDX:RAX, so we must sign-extend
+            # the 64-bit value already loaded in RAX before issuing the division.
             if expNode.operator == IRT.BinaryOperator.div:
                 Codegen.emit(
                     Assembly.Operation(
@@ -334,7 +350,8 @@ def munch_expression(expNode: IRT.Expression) -> Temp.Temp:
                         IRT.BinaryOperator.arshift,
                 ),
         ):
-            # sal/sar/shr count, dst : dst <<=/>>= count
+            # x86 shift instructions update their destination in place, so we reuse
+            # the temp that holds the left operand instead of creating a fresh one.
             dst_temp = munch_expression(expNode.left)
             Codegen.emit(
                 Assembly.Operation(
@@ -400,10 +417,9 @@ def munch_expression(expNode: IRT.Expression) -> Temp.Temp:
     # to argument list 'args'. The subexpression 'function' is evaluated before the
     # arguments, which are evaluated left to right.
     elif isinstance(expNode, IRT.Call):
-        # A CALL is expected to “trash” certain registers – the caller-save registers,
-        # and the return-value register. This list of calldefs should be listed as
-        # “destinations” of the CALL, so that the later phases of the compiler know
-        # that something happens to them here.
+        # A call implicitly overwrites the caller-saved register set and the return
+        # register. Recording those temps in ``destination`` forces liveness and
+        # allocation to treat them as clobbered across the call site.
         calldefs = [
             Frame.TempMap.register_to_temp[register]
             for register in Frame.caller_saved_registers
@@ -462,14 +478,18 @@ def munch_expression(expNode: IRT.Expression) -> Temp.Temp:
 
 
 class Codegen(ABC):
+    """Namespace-style collector for instructions emitted by the muncher."""
+
     instruction_list = []
 
     @classmethod
     def emit(cls, instruction: Assembly.Instruction) -> None:
+        """Append one instruction template to the current procedure body."""
         cls.instruction_list.append(instruction)
 
     @classmethod
     def codegen(cls, statement_list: List[IRT.Statement]) -> List[Assembly.Instruction]:
+        """Munch a canonical statement list and return the emitted templates."""
         for statement in statement_list:
             munch_statement(statement)
         instruction_list_copy = cls.instruction_list
